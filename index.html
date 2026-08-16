@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#FAF9F5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>破億計畫</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#FAF9F5; --bg2:#F0EEE6; --card:#FFFFFF;
+  --border:#E7E4DA; --border2:#D9D5C9;
+  --ink:#1F1E1B; --ink2:#5E5B52; --ink3:#96938B;
+  --acc:#D97757; --acc-d:#C05F3C; --acc-soft:#F7E9E2;
+  --good:#3E7A4E; --good-soft:#E8F0E9; --bad:#BF4040; --bad-soft:#F7E7E5;
+  --gold:#C9A227;
+  --r:18px;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --serif:Georgia,"Noto Serif TC","PMingLiU",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
+.phone{max-width:480px;margin:0 auto;min-height:100vh;padding:calc(var(--sat) + 14px) 18px calc(var(--sab) + 98px)}
+/* header */
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.top .t{font-family:var(--serif);font-size:21px;font-weight:700;letter-spacing:.01em}
+.top .t small{display:block;font-family:system-ui,sans-serif;font-size:11px;color:var(--ink3);font-weight:600;letter-spacing:.1em}
+.iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid var(--border);background:var(--card);
+  color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.iconbtn:active{transform:scale(.94)}
+/* views */
+.view{display:none;animation:in .25s ease-out}
+.view.active{display:block}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* hero */
+.hero{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:22px 20px}
+.hero .label{font-size:12px;color:var(--ink3);font-weight:700;letter-spacing:.08em}
+.hero .amount{font-family:var(--serif);font-size:36px;font-weight:700;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+.hero .asof{font-size:12px;color:var(--ink3);margin-top:2px}
+.hero-row{display:flex;align-items:center;gap:20px;margin-top:16px}
+.ring{position:relative;width:100px;height:100px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .pcttxt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .pcttxt b{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+.ring .pcttxt span{font-size:10px;color:var(--ink3);letter-spacing:.05em}
+.hero-facts{flex:1;display:grid;gap:7px}
+.fact{display:flex;justify-content:space-between;font-size:13.5px}
+.fact span{color:var(--ink2)} .fact b{font-variant-numeric:tabular-nums;font-weight:700}
+.pillrow{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.pill{font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:#F5EFDC;color:#8A6D1A}
+.pill.crit{background:var(--bad-soft);color:var(--bad)}
+/* cards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.card h3{font-size:11.5px;color:var(--ink3);font-weight:700;letter-spacing:.08em;margin-bottom:8px}
+.kpi{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums}
+.sub{font-size:11.5px;color:var(--ink3);margin-top:3px}
+.chartbox{position:relative;height:235px;margin-top:4px}
+.chartbox.sm{height:195px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.mt{margin-top:12px}
+.up{color:var(--good)} .down{color:var(--bad)}
+.section-t{font-family:var(--serif);font-size:19px;font-weight:700;margin:4px 0 2px}
+.note{font-size:11.5px;color:var(--ink3);line-height:1.7;margin-top:8px}
+/* entries */
+.entry{display:flex;align-items:center;gap:13px;padding:13px 15px;border-radius:16px;
+  background:var(--card);border:1px solid var(--border);margin-top:10px}
+.entry .dot{width:40px;height:40px;border-radius:13px;background:var(--acc-soft);color:var(--acc-d);
+  display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+.entry .mid{flex:1;min-width:0}
+.entry .mid b{font-size:15px;font-variant-numeric:tabular-nums}
+.entry .mid span{display:block;font-size:11.5px;color:var(--ink3)}
+.entry .chg{font-size:12.5px;font-weight:750;font-variant-numeric:tabular-nums;text-align:right}
+.entry .del{border:0;background:none;color:var(--ink3);font-size:16px;padding:6px;cursor:pointer}
+.empty{color:var(--ink3);text-align:center;padding:32px 0;font-size:13.5px}
+/* holdings */
+.hbar{height:10px;border-radius:6px;background:var(--bg2);overflow:hidden;display:flex;margin:10px 0 6px}
+.hbar i{display:block;height:100%}
+.hrow{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--border)}
+.hrow:last-child{border-bottom:0}
+.hrow .tk{font-weight:800;font-size:13.5px;min-width:64px}
+.hrow .tk span{display:block;font-weight:600;font-size:10.5px;color:var(--ink3)}
+.hrow .bar{flex:1;height:7px;border-radius:4px;background:var(--bg2);overflow:hidden}
+.hrow .bar i{display:block;height:100%;background:var(--acc);border-radius:4px}
+.hrow .val{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
+.hrow .pctv{font-size:11.5px;color:var(--ink3);min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.hrow .del{border:0;background:none;color:var(--ink3);cursor:pointer;font-size:15px;padding:4px}
+.mkt-tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;letter-spacing:.05em}
+.mkt-TW{background:#E4EDF5;color:#3D6B8E}.mkt-US{background:var(--acc-soft);color:var(--acc-d)}
+/* rates */
+.rcat{font-family:var(--serif);font-size:15px;font-weight:700;margin:18px 0 6px}
+.rrow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);
+  border-radius:14px;padding:12px 14px;margin-top:8px}
+.rrow .nm{flex:1;min-width:0}
+.rrow .nm b{font-size:13.5px}
+.rrow .nm span{display:block;font-size:11px;color:var(--ink3);margin-top:1px}
+.rrow .rt{font-size:19px;font-weight:800;color:var(--acc-d);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rrow .rt small{font-size:11px;font-weight:700;color:var(--ink3)}
+.rrow .del{border:0;background:none;color:var(--ink3);cursor:pointer;font-size:15px;padding:4px}
+/* forms */
+label.f{display:block;font-size:11.5px;color:var(--ink2);font-weight:700;margin-bottom:5px}
+input,select{width:100%;padding:11px 12px;border:1px solid var(--border2);border-radius:12px;
+  background:var(--card);color:var(--ink);font-size:15px;font-family:inherit}
+input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.field{margin-bottom:10px}
+.btn{width:100%;padding:13px;border-radius:14px;border:0;background:var(--acc);color:#fff;
+  font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+.btn:active{transform:scale(.98)}
+.btn.line{background:transparent;border:1.5px solid var(--border2);color:var(--ink2);font-weight:700}
+.btn.sm{padding:10px;font-size:13.5px;border-radius:12px}
+.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.slider-row{display:flex;align-items:center;gap:12px}
+.slider-row input[type=range]{flex:1;accent-color:var(--acc);padding:0;border:0}
+.slider-val{min-width:70px;text-align:right;font-weight:800;font-variant-numeric:tabular-nums;font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink3);font-weight:700;font-size:11px}
+/* fab / sheet */
+.fab{position:fixed;right:calc(50% - 220px);bottom:calc(var(--sab) + 98px);width:54px;height:54px;
+  border-radius:18px;background:var(--acc);border:0;color:#fff;font-size:26px;cursor:pointer;
+  box-shadow:0 8px 24px rgba(217,119,87,.4);display:none;align-items:center;justify-content:center;z-index:30}
+@media(max-width:520px){.fab{right:20px}}
+.fab:active{transform:scale(.92)}
+.sheet-mask{position:fixed;inset:0;background:rgba(31,30,27,.35);opacity:0;pointer-events:none;transition:.25s;z-index:40}
+.sheet{position:fixed;left:50%;transform:translate(-50%,105%);bottom:0;width:min(480px,100%);
+  background:var(--bg);border-radius:24px 24px 0 0;border:1px solid var(--border2);border-bottom:0;
+  padding:12px 20px calc(var(--sab) + 20px);transition:.3s cubic-bezier(.2,.8,.2,1);z-index:41;max-height:86vh;overflow-y:auto}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:var(--border2);margin:0 auto 12px}
+.sheet h2{font-family:var(--serif);font-size:17px;font-weight:700;margin-bottom:12px}
+body.sheet-open .sheet-mask{opacity:1;pointer-events:auto}
+body.sheet-open .sheet{transform:translate(-50%,0)}
+/* nav */
+nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sab) + 12px);
+  width:min(452px,calc(100% - 28px));display:flex;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--border);border-radius:22px;padding:7px;z-index:20;
+  box-shadow:0 10px 30px rgba(31,30,27,.10)}
+nav button{flex:1;border:0;background:transparent;color:var(--ink3);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;border-radius:15px;
+  font-size:10px;font-weight:750;font-family:inherit;transition:.18s}
+nav button svg{width:20px;height:20px}
+nav button.active{color:var(--acc-d);background:var(--acc-soft)}
+.toast{position:fixed;left:50%;transform:translateX(-50%) translateY(16px);bottom:calc(var(--sab) + 168px);
+  background:var(--ink);color:#fff;padding:10px 18px;border-radius:12px;font-size:13.5px;font-weight:700;
+  opacity:0;transition:.3s;z-index:60;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.result-big{font-family:var(--serif);font-size:23px;font-weight:700;font-variant-numeric:tabular-nums}
+.simbox{margin-top:8px;padding:15px;border-radius:14px;background:var(--acc-soft)}
+.upd{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--ink3);margin-top:6px}
+/* AI 顧問 */
+.diag{border-left:4px solid var(--border2);border-radius:12px;background:var(--card);border:1px solid var(--border);padding:13px 14px;margin-top:10px}
+.diag.good{border-left-color:var(--good)}
+.diag.warn{border-left-color:var(--gold)}
+.diag.crit{border-left-color:var(--bad)}
+.diag b{font-size:13.5px;display:block;margin-bottom:3px}
+.diag p{font-size:12.5px;color:var(--ink2);line-height:1.65}
+.chatbox{margin-top:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px}
+.msgs{display:flex;flex-direction:column;gap:10px;max-height:340px;overflow-y:auto}
+.msg{max-width:88%;padding:10px 13px;border-radius:16px;font-size:13.5px;line-height:1.65;white-space:pre-line}
+.msg.user{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:5px}
+.msg.bot{align-self:flex-start;background:var(--bg2);color:var(--ink);border-bottom-left-radius:5px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--border2);background:var(--card);color:var(--ink2);font-size:12px;font-weight:700;
+  padding:7px 12px;border-radius:999px;cursor:pointer;font-family:inherit}
+.chip:active{background:var(--acc-soft);border-color:var(--acc)}
+.askrow{display:flex;gap:8px}
+.askrow input{flex:1}
+.askrow button{width:auto;padding:11px 18px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="top">
+    <div class="t">破億計畫<small>ROAD TO 100M</small></div>
+    <div style="display:flex;gap:8px">
+      <button class="iconbtn" id="btnImport" title="匯入備份"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></button>
+      <button class="iconbtn" id="btnExport" title="下載備份"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 21h16"/></svg></button>
+    </div>
+    <input type="file" id="fileInput" accept="application/json" style="display:none">
+  </div>
+
+  <!-- ===== 總覽 ===== -->
+  <section class="view active" id="v-home">
+    <div class="hero">
+      <div class="label">目前淨資產</div>
+      <div class="amount" id="h_amount">NT$ 0</div>
+      <div class="asof" id="h_asof">—</div>
+      <div class="hero-row">
+        <div class="ring">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="43" fill="none" stroke="var(--bg2)" stroke-width="9"/>
+            <circle id="ringFg" cx="50" cy="50" r="43" fill="none" stroke="#D97757" stroke-width="9"
+              stroke-linecap="round" stroke-dasharray="270.2" stroke-dashoffset="270.2" style="transition:stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1)"/>
+          </svg>
+          <div class="pcttxt"><b id="h_pct">0%</b><span>達成率</span></div>
+        </div>
+        <div class="hero-facts">
+          <div class="fact"><span>目標</span><b id="h_goal">1 億</b></div>
+          <div class="fact"><span>還差</span><b id="h_gap">—</b></div>
+          <div class="fact"><span>剩餘時間</span><b id="h_years">—</b></div>
+          <div class="fact"><span>需年化</span><b id="h_req">—</b></div>
+        </div>
+      </div>
+      <div class="pillrow" id="h_pills"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h3>實際年化報酬</h3><div class="kpi" id="h_act">—</div><div class="sub" id="h_act_sub">需至少 2 筆紀錄</div></div>
+      <div class="card"><h3>依假設 40 歲預估</h3><div class="kpi" id="h_proj">—</div><div class="sub" id="h_proj_sub">—</div></div>
+    </div>
+
+    <div class="card mt">
+      <h3>資產成長軌跡</h3>
+      <div class="chartbox"><canvas id="growthChart"></canvas></div>
+      <div class="legend">
+        <span><i style="background:#D97757"></i>實際</span>
+        <span><i style="background:#B3B0A6"></i>達標軌道</span>
+        <span><i style="background:#7A9464"></i>假設預估</span>
+      </div>
+    </div>
+
+    <div class="card mt">
+      <h3>資產配置（最新快照）</h3>
+      <div class="chartbox sm"><canvas id="allocChart"></canvas></div>
+      <div class="sub" id="alloc_liab"></div>
+    </div>
+
+    <div class="card mt">
+      <h3>快速模擬：年化 × 每月加投 → 40 歲</h3>
+      <div class="field"><label class="f">年化報酬率</label>
+        <div class="slider-row"><input type="range" id="m_rate" min="0" max="40" step="0.5" value="15"><span class="slider-val" id="m_rate_v">15%</span></div></div>
+      <div class="field"><label class="f">每月加投</label>
+        <div class="slider-row"><input type="range" id="m_monthly" min="0" max="500000" step="10000" value="0"><span class="slider-val" id="m_monthly_v">0</span></div></div>
+      <div class="simbox">
+        <div style="font-size:11.5px;color:var(--ink2);font-weight:700">40 歲預估資產</div>
+        <div class="result-big" id="m_result">—</div>
+        <div class="sub" id="m_result_sub">—</div>
+      </div>
+      <div class="mt">
+        <table><thead><tr><th>年化</th><th>40歲資產</th><th>每月需加投</th></tr></thead><tbody id="scenBody"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 資產 ===== -->
+  <section class="view" id="v-log">
+    <div class="section-t">資產快照</div>
+    <div class="note">每月記一筆完整快照（含負債），追蹤淨資產。點右下「＋」新增。</div>
+    <div id="logList"></div>
+    <div class="empty" id="logEmpty" style="display:none">尚無紀錄，點右下角「＋」新增第一筆</div>
+    <button class="btn line mt" id="btnCSV">匯出 CSV</button>
+  </section>
+
+  <!-- ===== 持股 ===== -->
+  <section class="view" id="v-hold">
+    <div class="section-t">持股明細</div>
+    <div class="card mt">
+      <h3>新增持股</h3>
+      <div class="f3">
+        <div class="field"><label class="f">市場</label>
+          <select id="hd_mkt"><option value="TW">台股</option><option value="US">美股</option></select></div>
+        <div class="field"><label class="f">代號</label><input id="hd_ticker" placeholder="2330 / NVDA"></div>
+        <div class="field"><label class="f">市值（台幣）</label><input id="hd_value" type="number" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <button class="btn sm" id="hd_add">加入持股</button>
+    </div>
+    <div class="card mt">
+      <h3>台股 vs 美股</h3>
+      <div class="hbar" id="mktBar"></div>
+      <div class="legend" id="mktLegend"></div>
+    </div>
+    <div class="card mt">
+      <h3>個股比例</h3>
+      <div id="holdList"></div>
+      <div class="empty" id="holdEmpty" style="display:none;padding:18px 0">尚無持股，先在上方新增</div>
+    </div>
+    <button class="btn line mt" id="hd_snap">用持股金額建立今日快照</button>
+    <div class="note">「建立今日快照」會以台股／美股持股合計，搭配最近一筆快照的其他欄位，快速生成今天的紀錄。</div>
+  </section>
+
+  <!-- ===== 利率情報 ===== -->
+  <section class="view" id="v-rate">
+    <div class="section-t">資金停泊 · 利率情報</div>
+    <div class="upd"><span>資料整理日：<b id="ratesDate">—</b></span><button class="iconbtn" id="rt_reset" title="還原內建資料" style="width:32px;height:32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 109-9 9.5 9.5 0 00-6.5 2.7L3 8m0-5v5h5"/></svg></button></div>
+    <div id="rateList"></div>
+    <div class="card mt">
+      <h3>自訂新增</h3>
+      <div class="f3">
+        <div class="field"><label class="f">分類</label>
+          <select id="rt_cat"><option>台幣活存（數位帳戶）</option><option>台幣定存</option><option>美元定存</option><option>美元短債ETF／MMF</option><option>其他</option></select></div>
+        <div class="field"><label class="f">名稱</label><input id="rt_name" placeholder="XX銀行"></div>
+        <div class="field"><label class="f">年化%</label><input id="rt_rate" type="number" step="0.01" placeholder="2.5"></div>
+      </div>
+      <div class="field"><label class="f">條件備註（額度／期限）</label><input id="rt_note" placeholder="10萬內、至2026/12/31"></div>
+      <button class="btn sm" id="rt_add">加入</button>
+    </div>
+    <div class="note">⚠️ 利率隨時變動，實際以各銀行官網為準；高利多有額度上限與新戶／新資金條件。美元部位另有匯率風險。本頁為靜態資料，可自行編輯，也可以隨時回來請 Claude 幫你更新最新行情。</div>
+  </section>
+
+  <!-- ===== AI 顧問 ===== -->
+  <section class="view" id="v-ai">
+    <div class="section-t">AI 顧問</div>
+    <div class="note">內建理財規則引擎，直接分析你的真實數據，離線可用、不耗任何 AI 額度。僅供參考，非投資建議。</div>
+    <div id="diagList"></div>
+    <div class="chatbox">
+      <div class="msgs" id="msgs"></div>
+      <div class="chips" id="chips"></div>
+      <div class="askrow">
+        <input id="askInput" placeholder="問我：現金放哪？進度如何？..." autocomplete="off">
+        <button class="btn sm" id="askBtn">送出</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 設定 ===== -->
+  <section class="view" id="v-set">
+    <div class="section-t">目標設定</div>
+    <div class="card mt">
+      <div class="f2">
+        <div class="field"><label class="f">出生日期</label><input type="date" id="s_birth"></div>
+        <div class="field"><label class="f">目標年齡</label><input type="number" id="s_targetage"></div>
+        <div class="field"><label class="f">目標金額</label><input type="number" id="s_goal"></div>
+        <div class="field"><label class="f">起始資產</label><input type="number" id="s_start"></div>
+        <div class="field" style="grid-column:1/-1"><label class="f">起始日期</label><input type="date" id="s_startdate"></div>
+      </div>
+      <div class="field"><label class="f">預期年化報酬率</label>
+        <div class="slider-row"><input type="range" id="s_return" min="0" max="40" step="0.5"><span class="slider-val" id="s_return_v">15%</span></div></div>
+      <div class="field"><label class="f">每月固定加投</label>
+        <div class="slider-row"><input type="range" id="s_monthly" min="0" max="500000" step="10000"><span class="slider-val" id="s_monthly_v">0</span></div></div>
+      <div class="btnrow">
+        <button class="btn" id="s_save">儲存設定</button>
+        <button class="btn line" id="s_reset">回復預設</button>
+      </div>
+      <div class="note">曲線說明：<b style="color:#C05F3C">實際</b>＝你的快照淨資產；<b style="color:#8A8778">達標軌道</b>＝起始到 40 歲剛好 1 億的最低路徑（在它之上＝領先）；<b style="color:#5E7A4A">假設預估</b>＝以目前淨資產照設定推算。<br><br>資料只存本機，換裝置前請「下載備份」。</div>
+    </div>
+  </section>
+</div>
+
+<!-- FAB & Sheet -->
+<button class="fab" id="fab">＋</button>
+<div class="sheet-mask" id="sheetMask"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <h2>新增資產快照</h2>
+  <div class="f2">
+    <div class="field" style="grid-column:1/-1"><label class="f">日期</label><input type="date" id="e_date"></div>
+    <div class="field"><label class="f">現金／存款</label><input type="number" id="e_cash" placeholder="0" inputmode="numeric"></div>
+    <div class="field"><label class="f">台股</label><input type="number" id="e_tw" placeholder="0" inputmode="numeric"></div>
+    <div class="field"><label class="f">美股／海外</label><input type="number" id="e_us" placeholder="0" inputmode="numeric"></div>
+    <div class="field"><label class="f">加密貨幣</label><input type="number" id="e_crypto" placeholder="0" inputmode="numeric"></div>
+    <div class="field"><label class="f">不動產</label><input type="number" id="e_estate" placeholder="0" inputmode="numeric"></div>
+    <div class="field"><label class="f">其他資產</label><input type="number" id="e_other" placeholder="0" inputmode="numeric"></div>
+    <div class="field" style="grid-column:1/-1"><label class="f" style="color:var(--bad)">負債（房貸／信貸／卡債等，填正數）</label><input type="number" id="e_liab" placeholder="0" inputmode="numeric"></div>
+  </div>
+  <button class="btn" id="e_add">加入紀錄</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<nav>
+  <button data-v="v-home" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5V21a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1z"/></svg>總覽</button>
+  <button data-v="v-log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg>資產</button>
+  <button data-v="v-hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10m6 10V4m6 16v-7"/></svg>持股</button>
+  <button data-v="v-rate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 6H9.5a3 3 0 000 6h5a3 3 0 010 6H6"/></svg>利率</button>
+  <button data-v="v-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15.5l-1.8-4.7L5.5 9l4.7-1.3L12 3zM19 15l.9 2.3 2.1.7-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.7L19 15z"/></svg>顧問</button>
+  <button data-v="v-set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 005 12a7 7 0 00.1 1.2l-2 1.5 2 3.5 2.4-1a7 7 0 002 1.2L10 21h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5A7 7 0 0019 12z"/></svg>設定</button>
+</nav>
+
+<script>
+"use strict";
+// ================= 狀態 =================
+const DEFAULTS={birth:"1998-01-13",targetAge:40,goal:100000000,start:6000000,startDate:todayISO(),annualReturn:15,monthly:0};
+const RATES_DATE="2026-08-16";
+const RATES_SEED=[
+ {cat:"台幣活存（數位帳戶）",name:"王道銀行（新戶）",rate:12,note:"10萬內 · 至2026/9/30"},
+ {cat:"台幣活存（數位帳戶）",name:"聯邦 New New Bank（新戶）",rate:10,note:"15萬內 · 至2026/12/31"},
+ {cat:"台幣活存（數位帳戶）",name:"彰銀 e財寶",rate:4,note:"10萬內 · 不分新舊戶"},
+ {cat:"台幣活存（數位帳戶）",name:"台新 Richart（新戶）",rate:3.5,note:"30萬內 · 至2027/3/31"},
+ {cat:"台幣活存（數位帳戶）",name:"聯邦 New New Bank",rate:3,note:"40萬內 · 不分新舊戶"},
+ {cat:"台幣活存（數位帳戶）",name:"台企銀 Hokii",rate:2.8,note:"15萬內"},
+ {cat:"台幣活存（數位帳戶）",name:"遠銀 Bankee",rate:2.6,note:"5萬內"},
+ {cat:"台幣活存（數位帳戶）",name:"LINE Bank",rate:1.5,note:"900萬內 · 大額可放"},
+ {cat:"台幣定存",name:"王道銀行 9個月（新資金）",rate:2.35,note:"上限1,000萬/筆"},
+ {cat:"台幣定存",name:"將來銀行 1年（牌告）",rate:1.81,note:"一般牌告最高"},
+ {cat:"美元定存",name:"王道銀行 1個月（新戶）",rate:12,note:"上限1萬美元 · 短期專案"},
+ {cat:"美元定存",name:"滙豐銀行 3個月（專案）",rate:7,note:"5.5–7% · 新資金"},
+ {cat:"美元定存",name:"滙豐銀行 1年（牌告）",rate:2.2,note:"牌告最高"},
+ {cat:"美元短債ETF／MMF",name:"SGOV（0–3月美債ETF）",rate:3.75,note:"TTM殖利率 · 無上限 · 有匯率風險"}
+];
+let settings=loadJSON("bp_settings",null); settings=settings?{...DEFAULTS,...settings}:{...DEFAULTS};
+let logs=loadJSON("bp_logs",null); if(!Array.isArray(logs)) logs=[{date:settings.startDate,cash:0,tw:settings.start,us:0,crypto:0,estate:0,other:0,liab:0}];
+let holdings=loadJSON("bp_holdings",[]);
+let rates=loadJSON("bp_rates",null); if(!Array.isArray(rates)) rates=[...RATES_SEED];
+let growthChart,allocChart;
+
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function loadJSON(k,f){try{const v=JSON.parse(localStorage.getItem(k));return v==null?f:v;}catch(e){return f;}}
+function persist(){try{
+  localStorage.setItem("bp_settings",JSON.stringify(settings));
+  localStorage.setItem("bp_logs",JSON.stringify(logs));
+  localStorage.setItem("bp_holdings",JSON.stringify(holdings));
+  localStorage.setItem("bp_rates",JSON.stringify(rates));
+}catch(e){}}
+function num(v){v=parseFloat(v);return isFinite(v)?v:0;}
+function assetTotal(e){return num(e.cash)+num(e.tw)+num(e.us)+num(e.crypto)+num(e.estate)+num(e.other);}
+function netTotal(e){return assetTotal(e)-num(e.liab);}
+function sortedLogs(){return [...logs].sort((a,b)=>a.date<b.date?-1:1);}
+function fmt(v){return Math.round(v).toLocaleString("en-US");}
+function fmtBig(v){const a=Math.abs(v);if(a>=1e8)return (v/1e8).toFixed(2)+" 億";if(a>=1e4)return (v/1e4).toLocaleString("en-US",{maximumFractionDigits:0})+" 萬";return fmt(v);}
+function pct(v){return (v*100).toFixed(1)+"%";}
+function yearsBetween(a,b){return (new Date(b)-new Date(a))/(365.25*864e5);}
+function targetDate(){const b=new Date(settings.birth);return new Date(b.getFullYear()+ +settings.targetAge,b.getMonth(),b.getDate());}
+function targetISO(){return targetDate().toISOString().slice(0,10);}
+function fvMonthly(s,m,ann,y){const r=Math.pow(1+ann,1/12)-1,n=Math.round(y*12);let v=s;for(let i=0;i<n;i++)v=v*(1+r)+m;return v;}
+function monthlyNeeded(s,g,ann,y){const r=Math.pow(1+ann,1/12)-1,n=Math.round(y*12);const grown=s*Math.pow(1+r,n);if(Math.abs(r)<1e-9)return (g-s)/n;return (g-grown)/((Math.pow(1+r,n)-1)/r);}
+function currentNet(){const s=sortedLogs();return s.length?netTotal(s[s.length-1]):num(settings.start);}
+function currentDate(){const s=sortedLogs();return s.length?s[s.length-1].date:settings.startDate;}
+function requiredPathValue(iso){const s=num(settings.start),g=num(settings.goal);const T=yearsBetween(settings.startDate,targetISO());const t=yearsBetween(settings.startDate,iso);if(T<=0)return g;return s*Math.pow(Math.pow(g/s,1/T),t);}
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),1800);}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+// ================= 導航 =================
+const fab=document.getElementById("fab");
+document.querySelectorAll("nav button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById(b.dataset.v).classList.add("active");
+    fab.style.display=b.dataset.v==="v-log"?"flex":"none";
+    if(b.dataset.v==="v-home"){renderGrowth();renderAlloc();}
+    if(b.dataset.v==="v-hold"){renderHold();}
+    if(b.dataset.v==="v-rate"){renderRates();}
+    if(b.dataset.v==="v-ai"){renderAI();}
+    window.scrollTo({top:0});
+  });
+});
+
+// ================= 總覽 =================
+function animateNumber(el,to,prefix){
+  const from=el._v||0;el._v=to;const t0=performance.now(),D=750;
+  function step(t){const p=Math.min(1,(t-t0)/D),e=1-Math.pow(1-p,3);
+    el.textContent=prefix+fmt(from+(to-from)*e);if(p<1)requestAnimationFrame(step);}
+  requestAnimationFrame(step);
+}
+function renderHome(){
+  const cur=currentNet(),goal=num(settings.goal);
+  const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
+  const req=cur>0?Math.pow(goal/cur,1/yrs)-1:0;
+  animateNumber(document.getElementById("h_amount"),cur,"NT$ ");
+  document.getElementById("h_asof").textContent="截至 "+currentDate()+"（"+fmtBig(cur)+"）";
+  document.getElementById("h_goal").textContent=fmtBig(goal);
+  document.getElementById("h_gap").textContent=fmtBig(Math.max(0,goal-cur));
+  document.getElementById("h_years").textContent=yrs.toFixed(1)+" 年";
+  document.getElementById("h_req").textContent=cur>0?pct(req):"—";
+  const p=Math.max(0,Math.min(1,cur/goal));
+  document.getElementById("h_pct").textContent=(p*100).toFixed(1)+"%";
+  requestAnimationFrame(()=>{document.getElementById("ringFg").style.strokeDashoffset=270.2*(1-p);});
+  const reqNow=requiredPathValue(currentDate());
+  const proj=fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,yrs);
+  let s1;
+  if(cur>=reqNow*1.001)s1=`<span class="pill good">● 領先軌道 ${fmtBig(cur-reqNow)}</span>`;
+  else if(cur>=reqNow*.98)s1=`<span class="pill warn">● 貼近達標軌道</span>`;
+  else s1=`<span class="pill crit">● 落後軌道 ${fmtBig(reqNow-cur)}</span>`;
+  const s2=proj>=goal?`<span class="pill good">依假設可達標 ✓</span>`:`<span class="pill warn">依假設約 ${fmtBig(proj)}</span>`;
+  document.getElementById("h_pills").innerHTML=s1+s2;
+  const s=sortedLogs(),act=document.getElementById("h_act"),asub=document.getElementById("h_act_sub");
+  if(s.length>=2){
+    const y=yearsBetween(s[0].date,s[s.length-1].date),v0=netTotal(s[0]),v1=netTotal(s[s.length-1]);
+    if(y>.05&&v0>0){const a=Math.pow(v1/v0,1/y)-1;act.textContent=pct(a);act.className="kpi "+(a>=req?"up":"");asub.textContent=s[0].date.slice(2)+" → "+s[s.length-1].date.slice(2);}
+    else{act.textContent="—";asub.textContent="區間太短";}
+  }else{act.textContent="—";asub.textContent="需至少 2 筆紀錄";}
+  document.getElementById("h_proj").textContent=fmtBig(proj);
+  const d=proj-goal;
+  document.getElementById("h_proj_sub").innerHTML=(d>=0?`<span class="up">超標 ${fmtBig(d)}</span>`:`<span class="down">差 ${fmtBig(-d)}</span>`)+` · @${settings.annualReturn}%`;
+  renderScenTable();simCalc();
+}
+
+// ================= 成長圖 =================
+function axisMonths(){
+  const s=new Date(settings.startDate),e=targetDate(),arr=[];
+  let d=new Date(s.getFullYear(),s.getMonth(),1);
+  while(d<=e){arr.push(new Date(d));d.setMonth(d.getMonth()+3);}
+  if(arr[arr.length-1]<e)arr.push(new Date(e));
+  return arr;
+}
+function renderGrowth(){
+  const ax=axisMonths(),labels=ax.map(d=>d.toISOString().slice(0,7));
+  const required=ax.map(d=>Math.round(requiredPathValue(d.toISOString().slice(0,10))));
+  const cur=currentNet(),cd=currentDate();
+  const expected=ax.map(d=>{const y=yearsBetween(cd,d.toISOString().slice(0,10));return y<0?null:Math.round(fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,y));});
+  const pts=sortedLogs().map(e=>({x:e.date.slice(0,7),y:Math.round(netTotal(e))}));
+  const actual=labels.map(l=>{const m=pts.filter(p=>p.x===l).pop();return m?m.y:null;});
+  if(growthChart)growthChart.destroy();
+  const ctx=document.getElementById("growthChart").getContext("2d");
+  const g=ctx.createLinearGradient(0,0,0,235);
+  g.addColorStop(0,"rgba(217,119,87,.22)");g.addColorStop(1,"rgba(217,119,87,0)");
+  growthChart=new Chart(ctx,{type:"line",data:{labels,datasets:[
+    {label:"達標軌道",data:required,borderColor:"#B3B0A6",borderDash:[5,5],borderWidth:1.6,pointRadius:0,tension:.25},
+    {label:"假設預估",data:expected,borderColor:"#7A9464",borderWidth:1.8,pointRadius:0,tension:.25,spanGaps:true},
+    {label:"實際",data:actual,borderColor:"#D97757",backgroundColor:g,fill:true,borderWidth:2.5,
+     pointRadius:3.5,pointBackgroundColor:"#D97757",pointBorderColor:"#FFFFFF",pointBorderWidth:1.5,tension:.25,spanGaps:true},
+  ]},options:chartOpts()});
+}
+function chartOpts(){
+  return {responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+    plugins:{legend:{display:false},tooltip:{
+      backgroundColor:"rgba(31,30,27,.95)",titleColor:"#fff",bodyColor:"#D9D5C9",padding:10,cornerRadius:10,
+      callbacks:{label:c=>c.dataset.label+"："+(c.parsed.y==null?"—":fmtBig(c.parsed.y))}}},
+    scales:{
+      x:{grid:{color:"#EFEDE4"},ticks:{color:"#96938B",maxTicksLimit:6,font:{size:10}}},
+      y:{grid:{color:"#EFEDE4"},ticks:{color:"#96938B",font:{size:10},
+        callback:v=>v>=1e8?(v/1e8).toFixed(1)+"億":(v/1e4).toFixed(0)+"萬"}}}};
+}
+
+// ================= 配置圖 =================
+function renderAlloc(){
+  const s=sortedLogs(),e=s[s.length-1]||{};
+  const cats=[["現金",e.cash],["台股",e.tw],["美股",e.us],["加密",e.crypto],["不動產",e.estate],["其他",e.other]]
+    .map(([k,v])=>[k,num(v)]).filter(([,v])=>v>0);
+  const colors=["#5B8BAB","#D97757","#7A9464","#C9A227","#A8779B","#8A8778"];
+  if(allocChart)allocChart.destroy();
+  allocChart=new Chart(document.getElementById("allocChart"),{type:"doughnut",
+    data:{labels:cats.map(c=>c[0]),datasets:[{data:cats.map(c=>c[1]),
+      backgroundColor:colors.slice(0,cats.length),borderColor:"#FFFFFF",borderWidth:3,borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
+      plugins:{legend:{position:"right",labels:{color:"#5E5B52",font:{size:11.5},boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true}},
+      tooltip:{backgroundColor:"rgba(31,30,27,.95)",callbacks:{label:c=>c.label+"："+fmtBig(c.parsed)}}}}});
+  const liab=num(e.liab);
+  document.getElementById("alloc_liab").innerHTML=liab>0
+    ?`總資產 ${fmtBig(assetTotal(e))} − <span class="down">負債 ${fmtBig(liab)}</span> ＝ 淨資產 <b>${fmtBig(netTotal(e))}</b>`
+    :`目前無負債紀錄 · 淨資產 <b>${fmtBig(netTotal(e))}</b>`;
+}
+
+// ================= 資產快照 =================
+function renderLog(){
+  const list=document.getElementById("logList");list.innerHTML="";
+  const s=sortedLogs().reverse();
+  document.getElementById("logEmpty").style.display=s.length?"none":"block";
+  s.forEach((e,i)=>{
+    const tot=netTotal(e);
+    const prev=s[i+1]?netTotal(s[i+1]):null;
+    const chg=prev!=null?tot-prev:null;
+    const liab=num(e.liab);
+    const div=document.createElement("div");div.className="entry";
+    div.innerHTML=`<div class="dot">💰</div>
+      <div class="mid"><b>NT$ ${fmt(tot)}</b><span>${esc(e.date)}${liab>0?` · 負債 ${fmtBig(liab)}`:""}</span></div>
+      ${chg!=null?`<div class="chg ${chg>=0?'up':'down'}">${chg>=0?'+':''}${fmtBig(chg)}</div>`:""}
+      <button class="del" data-d="${esc(e.date)}" data-t="${tot}" aria-label="刪除">✕</button>`;
+    list.appendChild(div);
+  });
+  list.querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
+    const i=logs.map((x,ix)=>({x,ix})).filter(o=>o.x.date===b.dataset.d&&String(netTotal(o.x))===b.dataset.t).pop();
+    if(i){logs.splice(i.ix,1);persist();refreshAll();toast("已刪除");}
+  }));
+}
+const openSheet=()=>{document.body.classList.add("sheet-open");document.getElementById("e_date").value=todayISO();};
+const closeSheet=()=>document.body.classList.remove("sheet-open");
+fab.addEventListener("click",openSheet);
+document.getElementById("sheetMask").addEventListener("click",closeSheet);
+document.getElementById("e_add").addEventListener("click",()=>{
+  const g=id=>num(document.getElementById(id).value);
+  logs.push({date:document.getElementById("e_date").value||todayISO(),
+    cash:g("e_cash"),tw:g("e_tw"),us:g("e_us"),crypto:g("e_crypto"),estate:g("e_estate"),other:g("e_other"),liab:g("e_liab")});
+  persist();["e_cash","e_tw","e_us","e_crypto","e_estate","e_other","e_liab"].forEach(id=>document.getElementById(id).value="");
+  closeSheet();refreshAll();toast("已新增紀錄 ✓");
+});
+
+// ================= 持股 =================
+function renderHold(){
+  const list=document.getElementById("holdList");list.innerHTML="";
+  document.getElementById("holdEmpty").style.display=holdings.length?"none":"block";
+  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+num(h.value),0);
+  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+num(h.value),0);
+  const tot=twSum+usSum;
+  const bar=document.getElementById("mktBar");
+  bar.innerHTML=tot>0?`<i style="width:${twSum/tot*100}%;background:#5B8BAB"></i><i style="width:${usSum/tot*100}%;background:#D97757"></i>`:"";
+  document.getElementById("mktLegend").innerHTML=tot>0
+    ?`<span><i style="background:#5B8BAB"></i>台股 ${fmtBig(twSum)}（${(twSum/tot*100).toFixed(1)}%）</span>
+      <span><i style="background:#D97757"></i>美股 ${fmtBig(usSum)}（${(usSum/tot*100).toFixed(1)}%）</span>`
+    :`<span style="color:var(--ink3)">尚無持股資料</span>`;
+  const sorted=[...holdings].sort((a,b)=>num(b.value)-num(a.value));
+  sorted.forEach(h=>{
+    const p=tot>0?num(h.value)/tot*100:0;
+    const row=document.createElement("div");row.className="hrow";
+    row.innerHTML=`<div class="tk">${esc(h.ticker)}<span class="mkt-tag mkt-${h.mkt}">${h.mkt==="TW"?"台股":"美股"}</span></div>
+      <div class="bar"><i style="width:${p}%;background:${h.mkt==="TW"?"#5B8BAB":"#D97757"}"></i></div>
+      <div class="pctv">${p.toFixed(1)}%</div>
+      <div class="val">${fmt(num(h.value))}</div>
+      <button class="del" data-k="${esc(h.ticker)}|${h.mkt}">✕</button>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
+    const [tk,mk]=b.dataset.k.split("|");
+    const i=holdings.findIndex(h=>h.ticker===tk&&h.mkt===mk);
+    if(i>-1){holdings.splice(i,1);persist();renderHold();toast("已刪除");}
+  }));
+}
+document.getElementById("hd_add").addEventListener("click",()=>{
+  const mkt=document.getElementById("hd_mkt").value;
+  const tk=document.getElementById("hd_ticker").value.trim().toUpperCase();
+  const v=num(document.getElementById("hd_value").value);
+  if(!tk||v<=0){toast("請填代號與市值");return;}
+  const ex=holdings.find(h=>h.ticker===tk&&h.mkt===mkt);
+  if(ex){ex.value=v;toast("已更新 "+tk);}else{holdings.push({mkt,ticker:tk,value:v});toast("已加入 "+tk);}
+  persist();document.getElementById("hd_ticker").value="";document.getElementById("hd_value").value="";
+  renderHold();
+});
+document.getElementById("hd_snap").addEventListener("click",()=>{
+  if(!holdings.length){toast("尚無持股資料");return;}
+  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+num(h.value),0);
+  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+num(h.value),0);
+  const s=sortedLogs(),last=s[s.length-1]||{};
+  logs.push({date:todayISO(),cash:num(last.cash),tw:twSum,us:usSum,
+    crypto:num(last.crypto),estate:num(last.estate),other:num(last.other),liab:num(last.liab)});
+  persist();refreshAll();toast("已建立今日快照 ✓");
+});
+
+// ================= 利率情報 =================
+const CAT_ORDER=["台幣活存（數位帳戶）","台幣定存","美元定存","美元短債ETF／MMF","其他"];
+function renderRates(){
+  document.getElementById("ratesDate").textContent=RATES_DATE;
+  const wrap=document.getElementById("rateList");wrap.innerHTML="";
+  CAT_ORDER.forEach(cat=>{
+    const items=rates.filter(r=>r.cat===cat).sort((a,b)=>num(b.rate)-num(a.rate));
+    if(!items.length)return;
+    const h=document.createElement("div");h.className="rcat";h.textContent=cat;wrap.appendChild(h);
+    items.forEach(r=>{
+      const idx=rates.indexOf(r);
+      const row=document.createElement("div");row.className="rrow";
+      row.innerHTML=`<div class="nm"><b>${esc(r.name)}</b><span>${esc(r.note||"")}</span></div>
+        <div class="rt">${num(r.rate)}<small>%</small></div>
+        <button class="del" data-i="${idx}">✕</button>`;
+      wrap.appendChild(row);
+    });
+  });
+  wrap.querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
+    rates.splice(+b.dataset.i,1);persist();renderRates();toast("已刪除");
+  }));
+}
+document.getElementById("rt_add").addEventListener("click",()=>{
+  const cat=document.getElementById("rt_cat").value;
+  const name=document.getElementById("rt_name").value.trim();
+  const rate=num(document.getElementById("rt_rate").value);
+  const note=document.getElementById("rt_note").value.trim();
+  if(!name||rate<=0){toast("請填名稱與年化%");return;}
+  rates.push({cat,name,rate,note});persist();
+  document.getElementById("rt_name").value="";document.getElementById("rt_rate").value="";document.getElementById("rt_note").value="";
+  renderRates();toast("已加入 ✓");
+});
+document.getElementById("rt_reset").addEventListener("click",()=>{
+  rates=[...RATES_SEED];persist();renderRates();toast("已還原內建資料");
+});
+
+// ================= 模擬 =================
+function simCalc(){
+  const cur=currentNet(),goal=num(settings.goal);
+  const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
+  const r=num(document.getElementById("m_rate").value)/100;
+  const m=num(document.getElementById("m_monthly").value);
+  document.getElementById("m_rate_v").textContent=(r*100).toFixed(1).replace(/\.0$/,"")+"%";
+  document.getElementById("m_monthly_v").textContent=fmt(m);
+  const fv=fvMonthly(cur,m,r,yrs),d=fv-goal;
+  document.getElementById("m_result").textContent="NT$ "+fmt(fv);
+  document.getElementById("m_result_sub").innerHTML=d>=0
+    ?`<span class="up">超標 ${fmtBig(d)} ✓</span>`
+    :`<span class="down">距 1 億還差 ${fmtBig(-d)}</span>`;
+}
+["m_rate","m_monthly"].forEach(id=>document.getElementById(id).addEventListener("input",simCalc));
+function renderScenTable(){
+  const cur=currentNet(),goal=num(settings.goal);
+  const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
+  const rates2=[10,15,20,25,28];
+  const body=document.getElementById("scenBody");body.innerHTML="";
+  rates2.forEach(r=>{
+    const fv=fvMonthly(cur,0,r/100,yrs);
+    const need=monthlyNeeded(cur,goal,r/100,yrs);
+    body.innerHTML+=`<tr><td>${r}%</td><td>${fmtBig(fv)}${fv>=goal?' <span class="up">✓</span>':''}</td><td>${need>0?fmt(need):'<span class="up">0（已達標）</span>'}</td></tr>`;
+  });
+}
+
+// ================= AI 顧問（內建規則引擎） =================
+function ctx(){
+  const s=sortedLogs(),e=s[s.length-1]||{};
+  const assets=assetTotal(e),liab=num(e.liab),net=netTotal(e);
+  const goal=num(settings.goal);
+  const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
+  const req=net>0?Math.pow(goal/net,1/yrs)-1:Infinity;
+  const reqNow=requiredPathValue(currentDate());
+  const proj=fvMonthly(net,num(settings.monthly),num(settings.annualReturn)/100,yrs);
+  let act=null;
+  if(s.length>=2){const y=yearsBetween(s[0].date,s[s.length-1].date),v0=netTotal(s[0]);
+    if(y>.05&&v0>0)act=Math.pow(netTotal(s[s.length-1])/v0,1/y)-1;}
+  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+num(h.value),0);
+  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+num(h.value),0);
+  const top=[...holdings].sort((a,b)=>num(b.value)-num(a.value))[0];
+  const bestTWD=[...rates].filter(r=>r.cat==="台幣活存（數位帳戶）").sort((a,b)=>num(b.rate)-num(a.rate))[0];
+  const daysSince=s.length?Math.round((new Date()-new Date(s[s.length-1].date))/864e5):999;
+  return {e,s,assets,liab,net,goal,yrs,req,reqNow,proj,act,twSum,usSum,top,bestTWD,daysSince,
+    cashR:assets>0?num(e.cash)/assets:0,cryptoR:assets>0?num(e.crypto)/assets:0,
+    estateR:assets>0?num(e.estate)/assets:0,liabR:assets>0?liab/assets:0,
+    stkTot:twSum+usSum,topR:(twSum+usSum)>0&&top?num(top.value)/(twSum+usSum):0};
+}
+function advisorDiag(){
+  const c=ctx(),out=[];
+  // 1. 進度
+  if(c.net>=c.reqNow*1.001)out.push({lv:"good",t:"進度：領先達標軌道",p:`目前淨資產 ${fmtBig(c.net)}，比軌道應有的 ${fmtBig(c.reqNow)} 多出 ${fmtBig(c.net-c.reqNow)}。維持現在的紀律即可。`});
+  else if(c.net>=c.reqNow*.98)out.push({lv:"warn",t:"進度：貼近達標軌道",p:`目前淨資產與軌道應有值幾乎重合（差 ${fmtBig(Math.abs(c.reqNow-c.net))}），沒有犯錯空間，建議每月檢視一次。`});
+  else out.push({lv:"crit",t:"進度：落後達標軌道",p:`落後 ${fmtBig(c.reqNow-c.net)}。從現在起需年化約 ${pct(c.req)} 才能在 ${settings.targetAge} 歲達標。`});
+  // 2. 所需報酬可行性
+  if(isFinite(c.req)){
+    if(c.req>0.25)out.push({lv:"crit",t:"所需年化 "+pct(c.req)+"：非常激進",p:`長期年化 25%+ 連專業機構都極難維持。三個槓桿：①提高每月投入（@${settings.annualReturn}% 需每月約 ${fmt(Math.max(0,monthlyNeeded(c.net,c.goal,num(settings.annualReturn)/100,c.yrs)))}）②延後目標年齡 ③下修目標金額。建議至少啟動其中一個，別把計畫全押在報酬率上。`});
+    else if(c.req>0.15)out.push({lv:"warn",t:"所需年化 "+pct(c.req)+"：偏積極",p:`高於大盤長期報酬（約 7–10%），需靠主動策略創造超額報酬。建議搭配每月加投降低壓力。`});
+    else out.push({lv:"good",t:"所需年化 "+pct(c.req)+"：務實可行",p:`接近指數化投資的長期報酬區間，維持紀律投入即可。`});
+  }
+  // 3. 實際 vs 需要
+  if(c.act!=null){
+    if(c.act>=c.req)out.push({lv:"good",t:"實際年化 "+pct(c.act)+" ≥ 需要的 "+pct(c.req),p:"照這個績效走可以達標。注意：此數字含加減碼資金，非純投資報酬。"});
+    else out.push({lv:"warn",t:"實際年化 "+pct(c.act)+" < 需要的 "+pct(c.req),p:`缺口 ${((c.req-c.act)*100).toFixed(1)} 個百分點。若績效難再提升，就用「每月加投」補：模擬頁拉桿試算看看。`});
+  }
+  // 4. 現金
+  const cash=num(c.e.cash);
+  if(c.cashR>0.3)out.push({lv:"warn",t:"現金比重 "+(c.cashR*100).toFixed(0)+"%：資金效率偏低",p:`現金 ${fmtBig(cash)}。建議保留約 6 個月生活費當緊急預備金，其餘${c.bestTWD?`可先停泊到高利活存（目前看板最高：${c.bestTWD.name} ${c.bestTWD.rate}%，${c.bestTWD.note}）`:"可停泊到高利活存"}，或依策略分批投入。`});
+  else if(c.cashR<0.05&&c.assets>0)out.push({lv:"warn",t:"現金比重 "+(c.cashR*100).toFixed(1)+"%：預備金偏薄",p:"滿手部位遇到急用錢或大回檔會被迫砍在低點。建議至少留 3–6 個月生活費在高利活存。"});
+  // 5. 加密
+  if(c.cryptoR>0.15)out.push({lv:"warn",t:"加密資產 "+(c.cryptoR*100).toFixed(0)+"%：波動風險高",p:"單日 -20% 都屬常見。確認這個比重跌 50% 時你睡得著，否則建議控制在總資產 5–10%。"});
+  // 6. 負債
+  if(c.liab>0){
+    if(c.liabR>0.5)out.push({lv:"crit",t:"負債比 "+(c.liabR*100).toFixed(0)+"%：偏高",p:`負債 ${fmtBig(c.liab)}。槓桿放大報酬也放大風險，建議優先降低高利率負債。`});
+    else out.push({lv:"warn",t:"有負債 "+fmtBig(c.liab),p:`原則：負債利率 > 預期報酬（${settings.annualReturn}%）→ 優先還款；反之低利房貸可不急著提前還。信用卡循環利息一律最優先清償。`});
+  }
+  // 7. 持股集中
+  if(c.top&&c.topR>0.6)out.push({lv:"crit",t:`單一持股 ${c.top.ticker} 佔 ${ (c.topR*100).toFixed(0)}%：高度集中`,p:"這是「快速致富也快速歸零」的結構。若這檔跌 40%，你的破億時程會直接延後數年，建議設定單一部位上限。"});
+  else if(c.top&&c.topR>0.4)out.push({lv:"warn",t:`單一持股 ${c.top.ticker} 佔 ${(c.topR*100).toFixed(0)}%：集中度偏高`,p:"主動投資集中沒有錯，但建議想清楚停損機制與部位上限（常見上限為 20–30%）。"});
+  if(c.stkTot>0&&(c.twSum/c.stkTot>0.9||c.usSum/c.stkTot>0.9))out.push({lv:"warn",t:"股票幾乎全押單一市場",p:`台股 ${(c.twSum/(c.stkTot||1)*100).toFixed(0)}% / 美股 ${(c.usSum/(c.stkTot||1)*100).toFixed(0)}%。單一市場的系統性風險（政策、匯率、地緣）無法靠選股分散，可考慮兩市場配置。`});
+  // 8. 記帳頻率
+  if(c.daysSince>45)out.push({lv:"warn",t:"距上次記帳已 "+c.daysSince+" 天",p:"快照斷更太久，「實際年化」會失真。建議每月固定一天（例如發薪日）記一筆。"});
+  return out;
+}
+const QA=[
+ {k:["達標","來得及","進度","40歲","可能"],f:c=>`目前淨資產 ${fmtBig(c.net)}、距 ${settings.targetAge} 歲還有 ${c.yrs.toFixed(1)} 年，需成長 ${(c.goal/c.net).toFixed(1)} 倍（年化約 ${pct(c.req)}）。\n${c.net>=c.reqNow?"你目前領先達標軌道 "+fmtBig(c.net-c.reqNow)+"，繼續保持。":"目前落後軌道 "+fmtBig(c.reqNow-c.net)+"。"}\n依你設定的 ${settings.annualReturn}% 假設，40 歲預估 ${fmtBig(c.proj)}${c.proj>=c.goal?"，可達標 ✓":"，還差 "+fmtBig(c.goal-c.proj)+"，建議提高投入或調整策略"}。`},
+ {k:["現金","放哪","停泊","活存","定存","閒錢"],f:c=>{const b=c.bestTWD;return `你目前現金 ${fmtBig(num(c.e.cash))}（佔資產 ${(c.cashR*100).toFixed(0)}%）。\n原則：先留 6 個月生活費當預備金，剩下的錢不要躺活存 0.6%。\n${b?`利率看板目前最高：${b.name} 年化 ${b.rate}%（${b.note}）。`:""}超過額度上限的部分可疊加次高的方案，美元部位可看短債 ETF（如 SGOV），但注意匯率風險。詳見「利率」頁。`}},
+ {k:["加碼","保守","風險","怎麼配","調配","配置","建議"],f:c=>{const tips=advisorDiag().filter(d=>d.lv!=="good").slice(0,3);return `根據你的數據，最需要處理的 ${tips.length} 件事：\n`+tips.map((d,i)=>`${i+1}. ${d.t}——${d.p}`).join("\n")||"目前配置沒有明顯風險點，維持紀律即可。"}},
+ {k:["集中","單壓","分散","持股"],f:c=>c.top?`你最大持股是 ${c.top.ticker}（${c.top.mkt==="TW"?"台股":"美股"}），佔股票部位 ${(c.topR*100).toFixed(0)}%。\n${c.topR>0.4?"集中度偏高：主動投資可以集中，但要有明確的停損與部位上限（常見 20–30%）。想像它明天 -40%，你的計畫還成立嗎？":"集中度尚可。"}\n台股/美股比：${(c.twSum/(c.stkTot||1)*100).toFixed(0)}% / ${(c.usSum/(c.stkTot||1)*100).toFixed(0)}%。`:"你還沒在「持股」頁記錄個股，先把部位輸入，我才能分析集中度。"},
+ {k:["負債","還款","房貸","信貸","卡債"],f:c=>c.liab>0?`你目前負債 ${fmtBig(c.liab)}（負債比 ${(c.liabR*100).toFixed(0)}%）。\n判斷順序：①信用卡循環（15%+）→ 立刻清 ②信貸（3–8%）→ 利率高於你的預期報酬 ${settings.annualReturn}% 就先還 ③房貸（2% 左右）→ 低利長期資金，通常不急著提前還，把錢投入報酬更高的地方。`:"你目前沒有記錄負債。若有房貸/信貸，記得在新增快照時填入「負債」欄，淨資產才準確。"},
+ {k:["每月","加投","定投","投多少"],f:c=>{const m10=monthlyNeeded(c.net,c.goal,.10,c.yrs),m15=monthlyNeeded(c.net,c.goal,.15,c.yrs),m20=monthlyNeeded(c.net,c.goal,.20,c.yrs);return `以目前淨資產 ${fmtBig(c.net)} 計，要在 ${settings.targetAge} 歲達到 ${fmtBig(c.goal)}：\n年化 10% → 每月需 ${m10>0?fmt(m10):"0（已達標）"}\n年化 15% → 每月需 ${m15>0?fmt(m15):"0（已達標）"}\n年化 20% → 每月需 ${m20>0?fmt(m20):"0（已達標）"}\n報酬率每差 5%，月投金額差距非常大——「投入」是你唯一能 100% 控制的變數。`}},
+ {k:["報酬","年化","需要多少","幾趴","幾%"],f:c=>`從 ${fmtBig(c.net)} 到 ${fmtBig(c.goal)}、${c.yrs.toFixed(1)} 年內，無加投需年化 ${pct(c.req)}。\n參考基準：台股大盤長期約 8–10%、S&P500 約 10%、巴菲特生涯約 20%。${c.req>0.2?"你需要的報酬率已超過絕大多數專業投資人的長期紀錄，建議搭配加投或調整目標。":"落在可努力的範圍內。"}${c.act!=null?"\n你目前實際年化："+pct(c.act)+"（含加減碼）。":""}`},
+ {k:["目標","改","延後","降低"],f:c=>`目前目標：${settings.targetAge} 歲達到 ${fmtBig(c.goal)}。想調整可到「設定」頁改。\n參考：若延到 45 歲，所需年化從 ${pct(c.req)} 降到 ${pct(Math.pow(c.goal/c.net,1/(c.yrs+5))-1)}；若目標改 5000 萬，需年化 ${pct(Math.pow(50000000/c.net,1/c.yrs)-1)}。時間是複利最大的槓桿。`},
+];
+function answerQ(q){
+  const c=ctx();
+  let best=null,score=0;
+  QA.forEach(item=>{const s=item.k.filter(k=>q.includes(k)).length;if(s>score){score=s;best=item;}});
+  if(best)return best.f(c);
+  return "我是內建的規則引擎顧問，擅長回答這些主題：\n• 進度與達標可能性\n• 現金該放哪（高利停泊）\n• 資產配置建議\n• 持股集中度\n• 負債要不要先還\n• 每月該投多少\n點下方的快速問題，或換個關鍵字問我。";
+}
+function addMsg(txt,who){
+  const m=document.getElementById("msgs");
+  const d=document.createElement("div");d.className="msg "+who;d.textContent=txt;
+  m.appendChild(d);m.scrollTop=m.scrollHeight;
+}
+function renderAI(){
+  const wrap=document.getElementById("diagList");wrap.innerHTML="";
+  advisorDiag().forEach(d=>{
+    const el=document.createElement("div");el.className="diag "+d.lv;
+    el.innerHTML=`<b>${d.lv==="good"?"✅":d.lv==="warn"?"⚠️":"🚨"} ${esc(d.t)}</b><p>${esc(d.p)}</p>`;
+    wrap.appendChild(el);
+  });
+  const chips=document.getElementById("chips");
+  if(!chips.children.length){
+    ["我的進度如何？","現金該放哪？","給我配置建議","持股會太集中嗎？","負債要先還嗎？","每月該投多少？"].forEach(q=>{
+      const b=document.createElement("button");b.className="chip";b.textContent=q;
+      b.addEventListener("click",()=>{addMsg(q,"user");setTimeout(()=>addMsg(answerQ(q),"bot"),250);});
+      chips.appendChild(b);
+    });
+    addMsg("嗨！我已經分析完你的資產數據（上方診斷卡）。想深入哪個主題？點快速問題或直接輸入。","bot");
+  }
+}
+function doAsk(){
+  const inp=document.getElementById("askInput");const q=inp.value.trim();
+  if(!q)return;inp.value="";addMsg(q,"user");
+  setTimeout(()=>addMsg(answerQ(q),"bot"),250);
+}
+document.getElementById("askBtn").addEventListener("click",doAsk);
+document.getElementById("askInput").addEventListener("keydown",e=>{if(e.key==="Enter")doAsk();});
+
+// ================= 設定 =================
+function fillSettings(){
+  const S=id=>document.getElementById(id);
+  S("s_birth").value=settings.birth;S("s_targetage").value=settings.targetAge;
+  S("s_goal").value=settings.goal;S("s_start").value=settings.start;
+  S("s_startdate").value=settings.startDate;
+  S("s_return").value=settings.annualReturn;S("s_return_v").textContent=settings.annualReturn+"%";
+  S("s_monthly").value=settings.monthly;S("s_monthly_v").textContent=fmt(settings.monthly);
+}
+document.getElementById("s_return").addEventListener("input",e=>document.getElementById("s_return_v").textContent=e.target.value+"%");
+document.getElementById("s_monthly").addEventListener("input",e=>document.getElementById("s_monthly_v").textContent=fmt(num(e.target.value)));
+document.getElementById("s_save").addEventListener("click",()=>{
+  const S=id=>document.getElementById(id);
+  settings.birth=S("s_birth").value||DEFAULTS.birth;
+  settings.targetAge=num(S("s_targetage").value)||40;
+  settings.goal=num(S("s_goal").value)||DEFAULTS.goal;
+  settings.start=num(S("s_start").value)||DEFAULTS.start;
+  settings.startDate=S("s_startdate").value||DEFAULTS.startDate;
+  settings.annualReturn=num(S("s_return").value);
+  settings.monthly=num(S("s_monthly").value);
+  persist();refreshAll();toast("設定已儲存 ✓");
+});
+document.getElementById("s_reset").addEventListener("click",()=>{
+  settings={...DEFAULTS,startDate:todayISO()};persist();fillSettings();refreshAll();toast("已回復預設");
+});
+
+// ================= 匯出入 =================
+document.getElementById("btnExport").addEventListener("click",()=>{
+  const blob=new Blob([JSON.stringify({settings,logs,holdings,rates},null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="破億計畫_備份_"+todayISO()+".json";a.click();toast("已產生備份檔");
+});
+document.getElementById("btnImport").addEventListener("click",()=>document.getElementById("fileInput").click());
+document.getElementById("fileInput").addEventListener("change",e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);
+    if(d.settings)settings={...DEFAULTS,...d.settings};
+    if(Array.isArray(d.logs))logs=d.logs;
+    if(Array.isArray(d.holdings))holdings=d.holdings;
+    if(Array.isArray(d.rates))rates=d.rates;
+    persist();fillSettings();refreshAll();toast("匯入成功 ✓");
+  }catch(err){toast("匯入失敗：格式不正確");}};
+  r.readAsText(f);
+});
+document.getElementById("btnCSV").addEventListener("click",()=>{
+  const rows=[["日期","現金","台股","美股","加密","不動產","其他","負債","總資產","淨資產"]];
+  sortedLogs().forEach(e=>rows.push([e.date,num(e.cash),num(e.tw),num(e.us),num(e.crypto),num(e.estate),num(e.other),num(e.liab),assetTotal(e),netTotal(e)]));
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["﻿"+rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"}));
+  a.download="破億計畫_資產紀錄_"+todayISO()+".csv";a.click();toast("已匯出 CSV");
+});
+
+// ================= PWA =================
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+
+// ================= 刷新 =================
+function refreshAll(){
+  renderHome();renderLog();
+  if(document.getElementById("v-home").classList.contains("active")){renderGrowth();renderAlloc();}
+  if(document.getElementById("v-hold").classList.contains("active")){renderHold();}
+}
+fillSettings();
+refreshAll();
+renderGrowth();
+renderAlloc();
+</script>
+</body>
+</html>

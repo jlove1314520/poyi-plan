@@ -1,0 +1,15 @@
+{
+  "name": "破億計畫",
+  "short_name": "破億計畫",
+  "description": "資產紀錄與規劃：目標 40 歲達成 NT$1 億",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF9F5",
+  "theme_color": "#FAF9F5",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
