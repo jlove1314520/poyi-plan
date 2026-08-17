@@ -387,14 +387,23 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   </div>
   <div class="f2" id="catFields"></div>
   <div class="f2">
-    <div class="field" style="grid-column:1/-1"><label class="f" style="color:var(--bad)">負債（房貸／信貸／卡債等，填正數）</label><input type="number" id="e_liab" placeholder="0" inputmode="numeric"></div>
   </div>
+  <label class="f" style="color:var(--bad);margin-top:2px">負債（填正數，會從總資產扣除）</label>
+  <div class="f2" id="liabFields"></div>
   <div class="field">
-    <label class="f">管理分類（點分類可刪除）</label>
+    <label class="f">管理資產分類（點分類可刪除）</label>
     <div class="chips" id="catChips"></div>
     <div class="askrow" style="margin-top:8px">
-      <input id="newCat" placeholder="新增分類：黃金、保單、外幣...">
+      <input id="newCat" placeholder="新增資產分類：黃金、保單...">
       <button class="btn sm line" id="addCat" style="width:auto">新增</button>
+    </div>
+  </div>
+  <div class="field">
+    <label class="f" style="color:var(--bad)">管理負債分類（點分類可刪除）</label>
+    <div class="chips" id="liabChips"></div>
+    <div class="askrow" style="margin-top:8px">
+      <input id="newLiabCat" placeholder="新增負債分類：房貸、信貸、卡債...">
+      <button class="btn sm line" id="addLiabCat" style="width:auto">新增</button>
     </div>
   </div>
   <button class="btn" id="e_add">加入紀錄</button>
@@ -435,15 +444,26 @@ const DEFAULT_CATS=["現金","台股","美股","加密貨幣","不動產","其�
 let settings=loadJSON("bp_settings",null); settings=settings?{...DEFAULTS,...settings}:{...DEFAULTS};
 let cats=loadJSON("bp_cats",null); if(!Array.isArray(cats)||!cats.length) cats=[...DEFAULT_CATS];
 let logs=loadJSON("bp_logs",null); if(!Array.isArray(logs)) logs=[{date:settings.startDate,vals:{"台股":settings.start},liab:0}];
+let liabCats=loadJSON("bp_liabcats",null); if(!Array.isArray(liabCats)||!liabCats.length)liabCats=["負債"];
 function migrateLog(e){
-  if(e&&e.vals)return {date:e.date,vals:e.vals,liab:num(e.liab)};
-  const map={cash:"現金",tw:"台股",us:"美股",crypto:"加密貨幣",estate:"不動產",other:"其他"};
-  const vals={};
-  Object.entries(map).forEach(([k,n])=>{const v=num(e[k]);if(v)vals[n]=v;});
-  return {date:e.date,vals,liab:num(e.liab)};
+  const out={date:e.date};
+  if(e&&e.vals){out.vals=e.vals;}
+  else{
+    const map={cash:"現金",tw:"台股",us:"美股",crypto:"加密貨幣",estate:"不動產",other:"其他"};
+    const vals={};
+    Object.entries(map).forEach(([k,n])=>{const v=num(e[k]);if(v)vals[n]=v;});
+    out.vals=vals;
+  }
+  if(e&&e.liabs&&typeof e.liabs==="object"){out.liabs=e.liabs;}
+  else if(num(e.liab)>0){out.liabs={"負債":num(e.liab)};}
+  else{out.liabs={};}
+  return out;
 }
 logs=logs.map(migrateLog);
-logs.forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);}));
+logs.forEach(e=>{
+  Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);});
+  Object.keys(e.liabs||{}).forEach(k=>{if(!liabCats.includes(k))liabCats.push(k);});
+});
 let holdings=loadJSON("bp_holdings",[]);
 let quotes=loadJSON("bp_quotes",{}); if(typeof quotes!=="object"||!quotes) quotes={};
 let fx=loadJSON("bp_fx",null); if(!fx||!num(fx.rate)) fx={rate:32,t:0};
@@ -462,11 +482,13 @@ function persist(){try{
   localStorage.setItem("bp_rt_target",JSON.stringify(rtTarget));
   localStorage.setItem("bp_quotes",JSON.stringify(quotes));
   localStorage.setItem("bp_fx",JSON.stringify(fx));
+  localStorage.setItem("bp_liabcats",JSON.stringify(liabCats));
 }catch(e){}}
 function num(v){v=parseFloat(v);return isFinite(v)?v:0;}
 function assetTotal(e){let s=0;Object.values(e.vals||{}).forEach(v=>s+=num(v));return s;}
 function sumMatch(e,re){let s=0;Object.entries(e.vals||{}).forEach(([k,v])=>{if(re.test(k))s+=num(v);});return s;}
-function netTotal(e){return assetTotal(e)-num(e.liab);}
+function liabTotal(e){if(e.liabs&&typeof e.liabs==="object"){let s=0;Object.values(e.liabs).forEach(v=>s+=num(v));return s;}return num(e.liab);}
+function netTotal(e){return assetTotal(e)-liabTotal(e);}
 function sortedLogs(){return [...logs].sort((a,b)=>a.date<b.date?-1:1);}
 function dispUSD(){return settings.dispCur==="USD";}
 function curPrefix(){return dispUSD()?"US$ ":"NT$ ";}
@@ -600,7 +622,7 @@ function renderAlloc(){
     options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
       plugins:{legend:{position:"right",labels:{color:"#5E5B52",font:{size:11.5},boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true}},
       tooltip:{backgroundColor:"rgba(31,30,27,.95)",callbacks:{label:c=>c.label+"："+fmtBig(c.parsed)}}}}});
-  const liab=num(e.liab);
+  const liab=liabTotal(e);
   document.getElementById("alloc_liab").innerHTML=liab>0
     ?`總資產 ${fmtBig(assetTotal(e))} − <span class="down">負債 ${fmtBig(liab)}</span> ＝ 淨資產 <b>${fmtBig(netTotal(e))}</b>`
     :`目前無負債紀錄 · 淨資產 <b>${fmtBig(netTotal(e))}</b>`;
@@ -615,7 +637,7 @@ function renderLog(){
     const tot=netTotal(e);
     const prev=s[i+1]?netTotal(s[i+1]):null;
     const chg=prev!=null?tot-prev:null;
-    const liab=num(e.liab);
+    const liab=liabTotal(e);
     const div=document.createElement("div");div.className="entry";
     div.innerHTML=`<div class="dot">💰</div>
       <div class="mid"><b>${curPrefix()}${fmt(tot)}</b><span>${esc(e.date)}${liab>0?` · 負債 ${fmtBig(liab)}`:""}</span></div>
@@ -629,43 +651,75 @@ function renderLog(){
   }));
 }
 function renderCatFields(){
-  const wrap=document.getElementById("catFields");wrap.innerHTML="";
   const s=sortedLogs(),last=s[s.length-1];
+  // 資產分類欄位
+  const wrap=document.getElementById("catFields");wrap.innerHTML="";
   cats.forEach(c=>{
     const d=document.createElement("div");d.className="field";
-    const ph=last&&num((last.vals||{})[c])?fmt(num(last.vals[c])):"0";
+    const ph=last&&num((last.vals||{})[c])?fmtNum(num(last.vals[c])):"0";
     d.innerHTML=`<label class="f">${esc(c)}</label><input type="number" placeholder="${ph}" inputmode="numeric">`;
     d.querySelector("input").dataset.cat=c;
     wrap.appendChild(d);
   });
+  // 負債分類欄位
+  const lwrap=document.getElementById("liabFields");lwrap.innerHTML="";
+  liabCats.forEach(c=>{
+    const d=document.createElement("div");d.className="field";
+    const ph=last&&last.liabs&&num(last.liabs[c])?fmtNum(num(last.liabs[c])):"0";
+    d.innerHTML=`<label class="f" style="color:var(--bad)">${esc(c)}</label><input type="number" placeholder="${ph}" inputmode="numeric">`;
+    d.querySelector("input").dataset.liabcat=c;
+    lwrap.appendChild(d);
+  });
+  // 資產分類 chips
   const chips=document.getElementById("catChips");chips.innerHTML="";
   cats.forEach(c=>{
     const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
     b.addEventListener("click",()=>{
-      if(cats.length<=1){toast("至少保留一個分類");return;}
+      if(cats.length<=1){toast("至少保留一個資產分類");return;}
       cats=cats.filter(x=>x!==c);persist();renderCatFields();toast("已刪除分類「"+c+"」");
     });
     chips.appendChild(b);
   });
+  // 負債分類 chips
+  const lchips=document.getElementById("liabChips");lchips.innerHTML="";
+  liabCats.forEach(c=>{
+    const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
+    b.addEventListener("click",()=>{
+      if(liabCats.length<=1){toast("至少保留一個負債分類");return;}
+      liabCats=liabCats.filter(x=>x!==c);persist();renderCatFields();toast("已刪除負債分類「"+c+"」");
+    });
+    lchips.appendChild(b);
+  });
 }
+function isLiabName(n){return /負債|貸|債|loan|debt/i.test(n);}
 document.getElementById("addCat").addEventListener("click",()=>{
   const inp=document.getElementById("newCat");const name=inp.value.trim();
   if(!name){toast("請輸入分類名稱");return;}
-  if(cats.includes(name)){toast("分類已存在");return;}
+  if(cats.includes(name)||liabCats.includes(name)){toast("分類已存在");return;}
+  if(isLiabName(name)){toast("「"+name+"」看起來是負債，請用下方的負債分類新增");return;}
   cats.push(name);persist();inp.value="";renderCatFields();toast("已新增分類「"+name+"」");
+});
+document.getElementById("addLiabCat").addEventListener("click",()=>{
+  const inp=document.getElementById("newLiabCat");const name=inp.value.trim();
+  if(!name){toast("請輸入負債分類名稱");return;}
+  if(liabCats.includes(name)||cats.includes(name)){toast("分類已存在");return;}
+  liabCats.push(name);persist();inp.value="";renderCatFields();toast("已新增負債分類「"+name+"」");
 });
 const openSheet=()=>{document.body.classList.add("sheet-open");document.getElementById("e_date").value=todayISO();renderCatFields();};
 const closeSheet=()=>document.body.classList.remove("sheet-open");
 fab.addEventListener("click",openSheet);
 document.getElementById("sheetMask").addEventListener("click",closeSheet);
 document.getElementById("e_add").addEventListener("click",()=>{
-  const vals={};
+  const vals={},liabs={};
   document.querySelectorAll("#catFields input").forEach(inp=>{
     const v=num(inp.value);if(v)vals[inp.dataset.cat]=v;
   });
-  if(!Object.keys(vals).length){toast("至少填一個分類的金額");return;}
-  logs.push({date:document.getElementById("e_date").value||todayISO(),vals,liab:num(document.getElementById("e_liab").value)});
-  persist();document.getElementById("e_liab").value="";
+  document.querySelectorAll("#liabFields input").forEach(inp=>{
+    const v=num(inp.value);if(v)liabs[inp.dataset.liabcat]=v;
+  });
+  if(!Object.keys(vals).length&&!Object.keys(liabs).length){toast("至少填一個資產或負債金額");return;}
+  logs.push({date:document.getElementById("e_date").value||todayISO(),vals,liabs});
+  persist();
   closeSheet();refreshAll();toast("已新增紀錄 ✓");
 });
 
@@ -865,7 +919,7 @@ document.getElementById("hd_snap").addEventListener("click",()=>{
   const vals={...(last?last.vals:{})};
   if(twSum>0){vals["台股"]=twSum;if(!cats.includes("台股"))cats.push("台股");}
   if(usSum>0){vals["美股"]=usSum;if(!cats.includes("美股"))cats.push("美股");}
-  logs.push({date:todayISO(),vals,liab:last?num(last.liab):0});
+  logs.push({date:todayISO(),vals,liabs:last&&last.liabs?{...last.liabs}:{}});
   persist();refreshAll();toast("已建立今日快照 ✓");
 });
 
@@ -969,7 +1023,7 @@ function renderScenTable(){
 // ================= AI 顧問（內建規則引擎） =================
 function ctx(){
   const s=sortedLogs(),e=s[s.length-1]||{};
-  const assets=assetTotal(e),liab=num(e.liab),net=netTotal(e);
+  const assets=assetTotal(e),liab=liabTotal(e),net=netTotal(e);
   const goal=num(settings.goal);
   const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
   const req=net>0?Math.pow(goal/net,1/yrs)-1:Infinity;
@@ -1114,7 +1168,7 @@ document.getElementById("s_reset").addEventListener("click",()=>{
 
 // ================= 匯出入 =================
 document.getElementById("btnExport").addEventListener("click",()=>{
-  const blob=new Blob([JSON.stringify({settings,cats,logs,holdings,rates},null,2)],{type:"application/json"});
+  const blob=new Blob([JSON.stringify({settings,cats,liabCats,logs,holdings,rates},null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="破億計畫_備份_"+todayISO()+".json";a.click();toast("已產生備份檔");
 });
@@ -1126,7 +1180,11 @@ document.getElementById("fileInput").addEventListener("change",e=>{
     if(d.settings)settings={...DEFAULTS,...d.settings};
     if(Array.isArray(d.logs))logs=d.logs.map(migrateLog);
     if(Array.isArray(d.cats)&&d.cats.length)cats=d.cats;
-    logs.forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);}));
+    if(Array.isArray(d.liabCats)&&d.liabCats.length)liabCats=d.liabCats;
+    logs.forEach(e=>{
+      Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);});
+      Object.keys(e.liabs||{}).forEach(k=>{if(!liabCats.includes(k))liabCats.push(k);});
+    });
     if(Array.isArray(d.holdings))holdings=d.holdings;
     if(Array.isArray(d.rates))rates=d.rates;
     persist();fillSettings();refreshAll();toast("匯入成功 ✓");
@@ -1137,7 +1195,7 @@ document.getElementById("btnCSV").addEventListener("click",()=>{
   const allCats=[...cats];
   sortedLogs().forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!allCats.includes(k))allCats.push(k);}));
   const rows=[["日期",...allCats,"負債","總資產","淨資產"]];
-  sortedLogs().forEach(e=>rows.push([e.date,...allCats.map(c=>num((e.vals||{})[c])),num(e.liab),assetTotal(e),netTotal(e)]));
+  sortedLogs().forEach(e=>rows.push([e.date,...allCats.map(c=>num((e.vals||{})[c])),liabTotal(e),assetTotal(e),netTotal(e)]));
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob(["﻿"+rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"}));
   a.download="破億計畫_資產紀錄_"+todayISO()+".csv";a.click();toast("已匯出 CSV");
