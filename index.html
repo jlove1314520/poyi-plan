@@ -244,7 +244,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
     </div>
 
     <div class="card mt">
-      <h3>資產配置（最新快照）</h3>
+      <h3 id="allocTitle">資產配置（最新快照）</h3>
       <div class="chartbox sm"><canvas id="allocChart"></canvas></div>
       <div class="sub" id="alloc_liab"></div>
       <div id="alloc_lever"></div>
@@ -440,7 +440,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.0";
+const APP_VER="3.8.2";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -698,6 +698,8 @@ function chartOpts(){
 // ================= 配置圖 =================
 function renderAlloc(){
   const s=sortedLogs(),e=s[s.length-1]||{vals:{}};
+  const at=document.getElementById("allocTitle");
+  if(at)at.textContent=`資產配置（快照 ${e.date||"—"}）`;
   const assets=Object.entries(e.vals||{}).map(([k,v])=>({k,v:num(v),neg:false})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
   const liabs=Object.entries(e.liabs||{}).map(([k,v])=>({k,v:num(v),neg:true})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
   const items=[...assets,...liabs];
@@ -727,7 +729,10 @@ function renderAlloc(){
   const liab=liabTotal(e);
   document.getElementById("alloc_liab").innerHTML=liab>0
     ?`總資產 ${fmtBig(assetTotal(e))} − <span class="down">負債 ${fmtBig(liab)}</span> ＝ 淨資產 <b>${fmtBig(netTotal(e))}</b>${netTotal(e)>0?` · 槓桿比 <b>${(assetTotal(e)/netTotal(e)).toFixed(2)}</b>`:""}`
-    :`目前無負債紀錄 · 淨資產 <b>${fmtBig(netTotal(e))}</b>`;
+    :(()=>{
+      const prev=[...s].reverse().find(x=>liabTotal(x)>0);
+      return `最新快照無負債紀錄 · 淨資產 <b>${fmtBig(netTotal(e))}</b>${prev?`<br><span class="down">⚠️ ${prev.date} 曾記錄負債 ${fmtBig(liabTotal(prev))}——若負債仍在，請開「＋」在最新快照補上（欄位會自動帶入），圖表才會顯示負債與槓桿</span>`:""}`;
+    })();
   // 資金來源：自有 vs 借貸
   const lever=document.getElementById("alloc_lever");
   if(liab>0&&aTot>0){
@@ -761,8 +766,14 @@ function renderLog(){
     if(i){logs.splice(i.ix,1);persist();refreshAll();toast("已刪除");}
   }));
 }
-function renderCatFields(){
+function renderCatFields(keep){
   const s=sortedLogs(),last=s[s.length-1];
+  // keep=true：重建欄位前先保留使用者已輸入的值（新增/刪除分類時不可洗掉輸入）
+  const kv={},kl={};
+  if(keep){
+    document.querySelectorAll("#catFields input").forEach(i=>{kv[i.dataset.cat]=i.value;});
+    document.querySelectorAll("#liabFields input").forEach(i=>{kl[i.dataset.liabcat]=i.value;});
+  }
   // 資產分類欄位
   const wrap=document.getElementById("catFields");wrap.innerHTML="";
   cats.forEach(c=>{
@@ -771,7 +782,8 @@ function renderCatFields(){
     d.innerHTML=`<label class="f">${esc(c)}</label><input type="number" placeholder="0" inputmode="numeric">`;
     const inp=d.querySelector("input");
     inp.dataset.cat=c;
-    if(prev>0)inp.value=prev;
+    if(keep&&Object.prototype.hasOwnProperty.call(kv,c))inp.value=kv[c];
+    else if(prev>0)inp.value=prev;
     wrap.appendChild(d);
   });
   // 負債分類欄位
@@ -784,7 +796,8 @@ function renderCatFields(){
     d.innerHTML=`<label class="f" style="color:var(--bad)">${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><input type="number" placeholder="0" inputmode="numeric">`;
     const linp=d.querySelector("input");
     linp.dataset.liabcat=c;
-    if(prevL>0)linp.value=prevL;
+    if(keep&&Object.prototype.hasOwnProperty.call(kl,c))linp.value=kl[c];
+    else if(prevL>0)linp.value=prevL;
     lwrap.appendChild(d);
   });
   // 資產分類 chips
@@ -793,7 +806,7 @@ function renderCatFields(){
     const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
     b.addEventListener("click",()=>{
       if(cats.length<=1){toast("至少保留一個資產分類");return;}
-      cats=cats.filter(x=>x!==c);persist();renderCatFields();toast("已刪除分類「"+c+"」");
+      cats=cats.filter(x=>x!==c);persist();renderCatFields(true);toast("已刪除分類「"+c+"」");
     });
     chips.appendChild(b);
   });
@@ -803,7 +816,7 @@ function renderCatFields(){
     const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
     b.addEventListener("click",()=>{
       if(liabCats.length<=1){toast("至少保留一個負債分類");return;}
-      liabCats=liabCats.filter(x=>x!==c);delete liabMeta[c];persist();renderCatFields();toast("已刪除負債分類「"+c+"」");
+      liabCats=liabCats.filter(x=>x!==c);delete liabMeta[c];persist();renderCatFields(true);toast("已刪除負債分類「"+c+"」");
     });
     lchips.appendChild(b);
   });
@@ -814,7 +827,7 @@ document.getElementById("addCat").addEventListener("click",()=>{
   if(!name){toast("請輸入分類名稱");return;}
   if(cats.includes(name)||liabCats.includes(name)){toast("分類已存在");return;}
   if(isLiabName(name)){toast("「"+name+"」看起來是負債，請用下方的負債分類新增");return;}
-  cats.push(name);persist();inp.value="";renderCatFields();toast("已新增分類「"+name+"」");
+  cats.push(name);persist();inp.value="";renderCatFields(true);toast("已新增分類「"+name+"」");
 });
 document.getElementById("addLiabCat").addEventListener("click",()=>{
   const inp=document.getElementById("newLiabCat");const name=inp.value.trim();
@@ -831,8 +844,11 @@ document.getElementById("addLiabCat").addEventListener("click",()=>{
   else if(exists&&!Object.keys(meta).length)delete liabMeta[name];
   persist();
   inp.value="";document.getElementById("newLiabRate").value="";document.getElementById("newLiabMonthly").value="";
-  renderCatFields();
-  toast(exists?"已更新「"+name+"」":"已新增負債項目「"+name+"」");
+  renderCatFields(true);
+  // 新增後自動捲到新欄位並聚焦，提示填入借款金額
+  const nf=document.querySelector(`#liabFields input[data-liabcat="${CSS.escape(name)}"]`);
+  if(nf&&!exists){nf.scrollIntoView({block:"center",behavior:"smooth"});setTimeout(()=>nf.focus(),350);}
+  toast(exists?"已更新「"+name+"」":"已新增「"+name+"」，請在紅色欄位填入借款金額後按「加入紀錄」");
 });
 const openSheet=()=>{document.body.classList.add("sheet-open");document.getElementById("e_date").value=todayISO();renderCatFields();};
 const closeSheet=()=>document.body.classList.remove("sheet-open");
