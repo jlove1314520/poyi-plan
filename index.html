@@ -449,7 +449,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.3";
+const APP_VER="3.8.4";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -1156,18 +1156,29 @@ document.getElementById("hd_snap").addEventListener("click",()=>{
 // ================= 利率情報 =================
 // ---- 報酬標的參考庫（歷史約略年化，非投資建議）----
 const INSTRUMENTS=[
- {name:"美元短債（SGOV／BIL 類）",short:"美元短債",cat:"停泊／短債",cagr:3.8,dd:2,win:"現行殖利率",risk:1,rlabel:"低",note:"近無風險；美元計價有匯率波動"},
- {name:"投資級公司債（LQD 類）",short:"投等債",cat:"債券",cagr:4.5,dd:22,win:"2002– 長期約",risk:1,rlabel:"低",note:"有利率風險，升息年曾 -20% 級回撤"},
- {name:"台股高股息（0056 類）",short:"高股息",cat:"高股息",cagr:7,dd:35,win:"2007– 含息約",risk:2,rlabel:"中",note:"配息穩定，長期總報酬通常低於市值型"},
- {name:"全球股票（VT 類）",short:"全球股",cat:"全球市場",cagr:8,dd:50,win:"2008– 含息約",risk:2,rlabel:"中",note:"最分散；-50% 級回撤仍可能"},
- {name:"台股市值型（0050／006208）",short:"台股大盤",cat:"台股大盤",cagr:9,dd:45,win:"2003– 含息約",risk:2,rlabel:"中",note:"2008 曾 -45% 級回撤"},
- {name:"S&P 500（VOO／SPY）",short:"S&P500",cat:"美股大盤",cagr:10,dd:50,win:"長期含息約",risk:2,rlabel:"中",note:"歷史 -50% 級回撤；美元計價"},
- {name:"那斯達克 100（QQQ）",short:"QQQ",cat:"美股科技",cagr:13,dd:83,win:"1999–約10%、2011–約18%",risk:3,rlabel:"高",note:"2000 年曾 -83%；波動劇烈"},
- {name:"台灣50正2（00631L）",short:"台股正2",cat:"槓桿型",cagr:18,dd:75,win:"2014– 約（多頭期間）",risk:4,rlabel:"極高",note:"波動衰減＋深度回撤；長抱風險極高"},
- {name:"比特幣",short:"比特幣",cat:"加密貨幣",cagr:60,dd:83,win:"2015– 約（極端值）",risk:4,rlabel:"極高",note:"-80% 回撤多次；歷史報酬不可外推"},
+ {name:"台幣定存（各銀行牌告）",short:"台幣定存",cat:"現金／定存",cagr:1.7,dd:0,win:"現行牌告約",risk:1,rlabel:"低",note:"保本；長期輸給通膨"},
+ {name:"SGOV · iShares 0–3月美國公債",short:"SGOV 短債",cat:"停泊／短債",cagr:3.8,dd:2,win:"現行殖利率",risk:1,rlabel:"低",note:"近無風險；美元計價有匯率波動"},
+ {name:"AGG · iShares 美國總體債券",short:"AGG 總體債",cat:"債券",cagr:4,dd:18,win:"2003– 含息約",risk:1,rlabel:"低",note:"股債配置骨幹；2022 升息年曾 -17%"},
+ {name:"LQD · iShares 投資級公司債",short:"LQD 投等債",cat:"債券",cagr:4.5,dd:22,win:"2002– 含息約",risk:1,rlabel:"低",note:"利率風險，升息年曾 -20% 級回撤"},
+ {name:"TLT · iShares 20年+美國公債",short:"TLT 長債",cat:"債券",cagr:4,dd:48,win:"2002– 含息約",risk:2,rlabel:"中",note:"利率極敏感；2020–23 曾 -48%"},
+ {name:"GLD · SPDR 黃金",short:"GLD 黃金",cat:"貴金屬",cagr:7,dd:45,win:"2004– 約",risk:2,rlabel:"中",note:"抗通膨／避險；2011–15 曾 -45%"},
+ {name:"0056 · 元大高股息",short:"0056 高股息",cat:"台股高股息",cagr:7,dd:35,win:"2007– 含息約",risk:2,rlabel:"中",note:"配息穩定，長期總報酬通常低於市值型"},
+ {name:"00878 · 國泰永續高股息",short:"00878 高股息",cat:"台股高股息",cagr:8,dd:20,win:"2020– 含息約（區間短）",risk:2,rlabel:"中",note:"成立僅數年，歷史數據參考性低"},
+ {name:"VNQ · Vanguard 美國REITs",short:"VNQ 房產",cat:"不動產REITs",cagr:7,dd:68,win:"2004– 含息約",risk:3,rlabel:"高",note:"2008 金融海嘯曾 -68%"},
+ {name:"VT · Vanguard 全世界股票",short:"VT 全球股",cat:"全球市場",cagr:8,dd:50,win:"2008– 含息約",risk:2,rlabel:"中",note:"最分散；-50% 級回撤仍可能"},
+ {name:"0050／006208 · 台灣50",short:"0050 台股大盤",cat:"台股大盤",cagr:9,dd:45,win:"2003– 含息約",risk:2,rlabel:"中",note:"2008 曾 -45% 級回撤"},
+ {name:"VTI · Vanguard 美國全市場",short:"VTI 美國全市場",cat:"美股大盤",cagr:10,dd:55,win:"2001– 含息約",risk:2,rlabel:"中",note:"涵蓋中小型股；-55% 級回撤曾發生"},
+ {name:"SPY／VOO · S&P 500",short:"SPY S&P500",cat:"美股大盤",cagr:10,dd:50,win:"長期含息約",risk:2,rlabel:"中",note:"歷史 -50% 級回撤；美元計價"},
+ {name:"QQQ · Invesco 那斯達克100",short:"QQQ 科技",cat:"美股科技",cagr:13,dd:83,win:"1999–約10%、2011–約18%",risk:3,rlabel:"高",note:"2000 年曾 -83%；波動劇烈"},
+ {name:"SMH · VanEck 半導體",short:"SMH 半導體",cat:"美股科技",cagr:15,dd:70,win:"2011– 約20%；2000年代大幅走低",risk:3,rlabel:"高",note:"產業集中；景氣循環劇烈"},
+ {name:"2330 · 台積電",short:"2330 台積電",cat:"台股個股",cagr:16,dd:55,win:"2004– 含息約",risk:3,rlabel:"高",note:"單一個股集中風險；不可視為大盤替代品"},
+ {name:"00631L · 台灣50正2",short:"00631L 正2",cat:"槓桿型",cagr:18,dd:75,win:"2014– 約（多頭期間）",risk:4,rlabel:"極高",note:"波動衰減＋深度回撤；長抱風險極高"},
+ {name:"TQQQ · ProShares 納指3倍",short:"TQQQ 納指3x",cat:"槓桿型",cagr:30,dd:82,win:"2010– 約（多頭期間）",risk:4,rlabel:"極高",note:"2022 曾 -82%；2000年代情境恐近乎歸零"},
+ {name:"BTC · 比特幣",short:"BTC 比特幣",cat:"加密貨幣",cagr:60,dd:83,win:"2015– 約（極端值）",risk:4,rlabel:"極高",note:"-80% 回撤多次；歷史報酬不可外推"},
+ {name:"ETH · 以太幣",short:"ETH 以太幣",cat:"加密貨幣",cagr:50,dd:94,win:"2016– 約（極端值）",risk:4,rlabel:"極高",note:"曾 -94%；歸零風險真實存在"},
 ];
 const PORT_COLORS=["#5B8BAB","#D97757","#7A9464","#C9A227","#A8779B"];
-function buildPortfolios(target){
+function buildAllPortfolios(target){
   const A=INSTRUMENTS,res=[];
   const push=parts=>{
     const cagr=parts.reduce((s,p)=>s+A[p.i].cagr*p.w,0)/100;
@@ -1181,28 +1192,52 @@ function buildPortfolios(target){
     for(let w=10;w<=90;w+=10)push([{i,w},{i:j,w:100-w}]);
   for(let i=0;i<A.length;i++)for(let j=i+1;j<A.length;j++)for(let k=j+1;k<A.length;k++)
     for(let w1=10;w1<=80;w1+=10)for(let w2=10;w2<=90-w1;w2+=10)push([{i,w:w1},{i:j,w:w2},{i:k,w:100-w1-w2}]);
-  res.sort((a,b)=>a.dd-b.dd||a.maxRisk-b.maxRisk||a.n-b.n||b.cagr-a.cagr);
-  const seen=new Set(),out=[];
-  for(const p of res){
-    const k=p.parts.map(x=>x.i).sort().join(",");
-    if(seen.has(k))continue;seen.add(k);
-    out.push(p);if(out.length>=3)break;
-  }
+  return res;
+}
+// 依不同需求風格，各挑一個最佳組合（同一組標的只出現一次，強迫多樣性）
+function pickPortfolios(target){
+  const A=INSTRUMENTS,all=buildAllPortfolios(target);
+  if(!all.length)return [];
+  const seen=new Set();
+  const setKey=p=>p.parts.map(x=>x.i).sort().join(",");
+  const take=(list,tag,why)=>{
+    for(const p of list){const k=setKey(p);if(seen.has(k))continue;seen.add(k);return {...p,tag,why};}
+    return null;
+  };
+  const byDD=[...all].sort((a,b)=>a.dd-b.dd||a.maxRisk-b.maxRisk||a.n-b.n||b.cagr-a.cagr);
+  const byN=[...all].sort((a,b)=>a.n-b.n||a.dd-b.dd||b.cagr-a.cagr);
+  const spread=all.filter(p=>p.n===3&&new Set(p.parts.map(x=>A[x.i].cat)).size===3).sort((a,b)=>a.dd-b.dd||b.cagr-a.cagr);
+  const growth=all.filter(p=>p.maxRisk<=3).sort((a,b)=>b.cagr-a.cagr||a.dd-b.dd);
+  const barbell=all.filter(p=>p.parts.some(x=>A[x.i].risk>=4)&&p.parts.every(x=>A[x.i].risk<4||x.w<=20)).sort((a,b)=>a.dd-b.dd||b.cagr-a.cagr);
+  const out=[];
+  [ [byDD,"最穩達標","所有達標組合中，歷史回撤最淺"],
+    [byN,"精簡好執行","用最少標的達標，再平衡最省事"],
+    [spread,"分散配置","三種不同資產類別互相對沖"],
+    [growth,"成長優先","不碰槓桿／加密的前提下，報酬拉最高"],
+    [barbell,"槓鈴衛星","極高風險標的壓在 ≤20% 小倉位，虧完不傷本體"]
+  ].forEach(([list,tag,why])=>{const p=take(list,tag,why);if(p)out.push(p);});
   return out;
 }
-function portCard(p,idx,target){
+function portCard(p,idx){
   const A=INSTRUMENTS;
   const parts=[...p.parts].sort((a,b)=>b.w-a.w);
   const bar=parts.map((x,i)=>`<i style="width:${x.w}%;background:${PORT_COLORS[i%PORT_COLORS.length]}"></i>`).join("");
-  const rows=parts.map((x,i)=>`<span><i style="background:${PORT_COLORS[i%PORT_COLORS.length]}"></i>${x.w}% ${esc(A[x.i].short)} <span class="rk rk${A[x.i].risk}" style="margin-left:2px">${A[x.i].rlabel}</span></span>`).join("");
-  const tag=idx===0?"最低風險達標":idx===1?"替代方案":"替代方案 2";
+  const detail=parts.map((x,i)=>{const t=A[x.i];
+    return `<div style="display:flex;gap:8px;margin-top:7px;min-width:0">
+      <i style="flex:none;width:10px;height:10px;border-radius:3px;background:${PORT_COLORS[i%PORT_COLORS.length]};margin-top:3px"></i>
+      <div style="min-width:0">
+        <b style="font-size:12.5px">${x.w}%｜${esc(t.name)}</b> <span class="rk rk${t.risk}">${t.rlabel}</span><br>
+        <span style="font-size:11px;color:var(--ink3)">${esc(t.cat)} · 歷史年化≈${t.cagr}% · ${t.dd>0?`最大回撤約 -${t.dd}%`:"無回撤（保本）"}（${esc(t.win)}）</span>
+      </div></div>`;
+  }).join("");
   return `<div class="card" style="margin-top:10px;border-color:var(--acc)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <b style="font-size:13.5px">方案${["一","二","三"][idx]} · ${tag}</b>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+      <b style="font-size:13.5px">方案${["一","二","三","四","五"][idx]||idx+1} · ${esc(p.tag)}</b>
       <span style="font-size:17px;font-weight:800;color:var(--acc-d)">≈${p.cagr.toFixed(1)}<small style="font-size:11px">%/年</small></span>
     </div>
-    <div class="hbar" style="margin:0 0 8px">${bar}</div>
-    <div class="legend" style="margin-top:0">${rows}</div>
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">${esc(p.why)}</div>
+    <div class="hbar" style="margin:0 0 2px">${bar}</div>
+    ${detail}
     <div class="note" style="margin-top:8px">⚠️ 承受風險：歷史情境下<b>最大回撤估約 -${Math.round(p.dd)}%</b>${p.maxRisk>=4?"；含極高風險成分，該部位有歸零可能":p.maxRisk>=3?"；含高波動成分":""}。發生時帳面損失你必須撐得住，否則低點停損會鎖定虧損。</div>
   </div>`;
 }
@@ -1237,13 +1272,12 @@ function renderRateSearch(){
     box.innerHTML=html;attachRateDel(box);return;
   }
   if(rtTarget>12)html+=rateEdu();
-  const ports=buildPortfolios(rtTarget);
+  const ports=pickPortfolios(rtTarget);
   if(ports.length){
-    html+=`<div class="note" style="margin-top:10px">🔍 已搜尋 <b>單一／雙／三標的 × 權重組合</b>（10% 級距），以下為歷史年化可達 ${rtTarget}% 且<b>回撤最淺</b>的前三種配置：</div>`;
-    ports.forEach((p,i)=>html+=portCard(p,i,rtTarget));
+    html+=`<div class="note" style="margin-top:10px">🔍 已用 <b>${INSTRUMENTS.length} 檔參考標的</b>搜尋單一／雙／三標的 × 10% 權重的全部組合，依 ${ports.length} 種不同需求各挑一個最佳解（每個方案的標的組合皆不同）：</div>`;
+    ports.forEach((p,i)=>html+=portCard(p,i));
     html+=`<div class="note">估算方式：組合年化＝成分歷史年化加權（粗估，未含再平衡與相關性效果）；回撤＝成分歷史最大回撤加權（同時暴跌時實際可能更深）。含比特幣／槓桿的組合需嚴格控制比例與再平衡紀律。非投資建議。</div>`;
   }else{
-    const best=buildPortfolios(0)[0];
     html+=`<div class="note" style="margin-top:10px">😔 即使 100% 押最高風險標的，歷史年化也達不到 ${rtTarget}%。<b>最接近的極限配置</b>：</div>`;
     const top=[...INSTRUMENTS].sort((a,b)=>b.cagr-a.cagr)[0];
     html+=instRow(top,true);
