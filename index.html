@@ -124,6 +124,11 @@ input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0}
 .rrow.hit{border-color:var(--acc);background:var(--acc-soft)}
 .rrow.hit .rt{color:var(--acc-d)}
 .curbtn.on{background:var(--acc);color:#fff;border-color:transparent}
+.rk{font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;white-space:nowrap;flex:none}
+.rk1{background:var(--good-soft);color:var(--good)}
+.rk2{background:#F5EFDC;color:#8A6D1A}
+.rk3{background:#F7E5D8;color:#B4633A}
+.rk4{background:var(--bad-soft);color:var(--bad)}
 .btn{width:100%;padding:13px;border-radius:14px;border:0;background:var(--acc);color:#fff;
   font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
 .btn:active{transform:scale(.98)}
@@ -308,16 +313,22 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 
   <!-- ===== 利率情報 ===== -->
   <section class="view" id="v-rate">
-    <div class="section-t">資金停泊 · 利率情報</div>
-    <div class="upd"><span>資料整理日：<b id="ratesDate">—</b></span><button class="iconbtn" id="rt_reset" title="還原內建資料" style="width:32px;height:32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 109-9 9.5 9.5 0 00-6.5 2.7L3 8m0-5v5h5"/></svg></button></div>
+    <div class="section-t">報酬標的 · 年化推薦</div>
     <div class="card mt">
-      <h3>目標利率搜尋</h3>
+      <h3>目標年化搜尋</h3>
       <div class="askrow">
         <input id="rt_target" type="number" step="0.1" min="0" placeholder="我要年化至少 __ %" inputmode="decimal">
-        <button class="btn sm" id="rt_go">搜尋</button>
+        <button class="btn sm" id="rt_go">推薦</button>
       </div>
       <div id="rt_result"></div>
     </div>
+    <div class="card mt">
+      <h3>標的參考庫（長期年化 · 風險標示）</h3>
+      <div id="instList"></div>
+      <div class="note">年化為<b>歷史約略值</b>（時間窗與含息與否如標示），不代表未來報酬；風險等級指波動與最大回撤幅度。本頁為參考資訊，非投資建議。</div>
+    </div>
+    <div class="section-t" style="margin-top:20px;font-size:16px">資金停泊（無風險層）</div>
+    <div class="upd"><span>資料整理日：<b id="ratesDate">—</b></span><button class="iconbtn" id="rt_reset" title="還原內建資料" style="width:32px;height:32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 109-9 9.5 9.5 0 00-6.5 2.7L3 8m0-5v5h5"/></svg></button></div>
     <div id="rateList"></div>
     <div class="card mt">
       <h3>自訂新增</h3>
@@ -420,7 +431,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <button data-v="v-home" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5V21a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1z"/></svg>總覽</button>
   <button data-v="v-log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg>資產</button>
   <button data-v="v-hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10m6 10V4m6 16v-7"/></svg>持股</button>
-  <button data-v="v-rate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 6H9.5a3 3 0 000 6h5a3 3 0 010 6H6"/></svg>利率</button>
+  <button data-v="v-rate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 6H9.5a3 3 0 000 6h5a3 3 0 010 6H6"/></svg>標的</button>
   <button data-v="v-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15.5l-1.8-4.7L5.5 9l4.7-1.3L12 3zM19 15l.9 2.3 2.1.7-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.7L19 15z"/></svg>顧問</button>
   <button data-v="v-set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 005 12a7 7 0 00.1 1.2l-2 1.5 2 3.5 2.4-1a7 7 0 002 1.2L10 21h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5A7 7 0 0019 12z"/></svg>設定</button>
 </nav>
@@ -428,7 +439,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.6.3";
+const APP_VER="3.7.0";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -1050,6 +1061,25 @@ document.getElementById("hd_snap").addEventListener("click",()=>{
 });
 
 // ================= 利率情報 =================
+// ---- 報酬標的參考庫（歷史約略年化，非投資建議）----
+const INSTRUMENTS=[
+ {name:"美元短債 ETF（SGOV／BIL 類）",cat:"停泊／短債",cagr:3.8,win:"現行殖利率",risk:1,rlabel:"低",note:"近無風險；美元計價有匯率波動"},
+ {name:"投資級公司債（LQD 類）",cat:"債券",cagr:4.5,win:"2002– 長期約",risk:1,rlabel:"低",note:"有利率風險，升息年曾 -20% 級回撤"},
+ {name:"台股高股息（0056 類）",cat:"高股息",cagr:7,win:"2007– 含息約",risk:2,rlabel:"中",note:"配息穩定，長期總報酬通常低於市值型"},
+ {name:"全球股票（VT 類）",cat:"全球市場",cagr:8,win:"2008– 含息約",risk:2,rlabel:"中",note:"最分散；-50% 級回撤仍可能"},
+ {name:"台股市值型（0050／006208）",cat:"台股大盤",cagr:9,win:"2003– 含息約",risk:2,rlabel:"中",note:"2008 曾 -45% 級回撤"},
+ {name:"S&P 500（VOO／SPY）",cat:"美股大盤",cagr:10,win:"長期含息約",risk:2,rlabel:"中",note:"歷史 -50% 級回撤；美元計價"},
+ {name:"那斯達克 100（QQQ）",cat:"美股科技",cagr:13,win:"視窗差異大：1999–約10%、2011–約18%",risk:3,rlabel:"高",note:"2000 年曾 -83%；波動劇烈"},
+ {name:"台灣50正2（00631L）",cat:"槓桿型",cagr:18,win:"2014– 約（多頭期間）",risk:4,rlabel:"極高",note:"波動衰減＋深度回撤；長抱風險極高"},
+ {name:"比特幣",cat:"加密貨幣",cagr:60,win:"2015– 約（極端值）",risk:4,rlabel:"極高",note:"-80% 回撤多次；歷史報酬不可外推"},
+];
+function instRow(x,hit){
+  return `<div class="rrow${hit?" hit":""}"><div class="nm"><b>${esc(x.name)}</b><span>${esc(x.cat)} · ${esc(x.win)} · ${esc(x.note)}</span></div><div class="rt">≈${x.cagr}<small>%</small></div><span class="rk rk${x.risk}">${x.rlabel}風險</span></div>`;
+}
+function renderInst(){
+  const el=document.getElementById("instList");if(!el)return;
+  el.innerHTML=INSTRUMENTS.map(x=>instRow(x,false)).join("");
+}
 const CAT_ORDER=["台幣活存（數位帳戶）","台幣定存","美元定存","美元短債ETF／MMF","其他"];
 function rateRow(r,hit){
   const idx=rates.indexOf(r);
@@ -1059,32 +1089,42 @@ function rateEdu(){
   const cur=currentNet(),goal=num(settings.goal);
   const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
   const req=cur>0?Math.pow(goal/cur,1/yrs)-1:0;
-  return `<div class="diag warn" style="margin-top:10px"><b>💡 ${rtTarget}% 不是「利率」，是「投資報酬率」</b><p>這一頁找的是「資金停泊」＝無風險報酬，天花板大約：台幣大額 1.5–2%、美元 4% 上下，更高的都是有額度上限的小額促銷。想長期拿到 ${rtTarget}%，只能承擔市場風險：參考長期年化——台股大盤含息約 9%、S&P500 約 10%；再往上需要主動策略或槓桿，且必然伴隨虧損風險。<br><br>⚠️ <b>任何宣稱「保證 ${rtTarget}%、無風險」的商品，幾乎可以肯定是詐騙。</b><br><br>你目前的需年化約 <b>${pct(req)}</b>，正確拆法：緊急預備金放停泊（本頁）→ 主力投入市場部位（到「顧問」頁看配置建議）→ 缺口用每月加投補（到「模擬」頁拉桿試算）。目標不是找一個 ${rtTarget}% 的存放處，而是組合。</p></div>`;
+  return `<div class="diag warn" style="margin-top:10px"><b>💡 先知道長期年化 ${rtTarget}% 有多難</b><p>參考座標：巴菲特生涯約 20%，多數專業經理人長期跑不贏大盤的 10%。歷史上摸得到 ${rtTarget}% 的只有高波動標的（科技集中、槓桿、加密貨幣），代價是 -50%～-80% 的回撤你必須撐得過去。<br><br>⚠️ <b>任何宣稱「保證 ${rtTarget}%、無風險」的商品，幾乎可以肯定是詐騙。</b><br><br>你目前的需年化約 <b>${pct(req)}</b>。與其單壓高風險標的，更可執行的路通常是：中風險大盤（9–10%）＋每月加投＋時間——到「模擬」頁拉桿看看加投多少能補上缺口。</p></div>`;
 }
 function renderRateSearch(){
   const box=document.getElementById("rt_result");
   document.getElementById("rt_target").value=rtTarget||"";
   if(!rtTarget||rtTarget<=0){box.innerHTML="";return;}
-  const sorted=[...rates].sort((a,b)=>num(b.rate)-num(a.rate));
-  const hits=sorted.filter(r=>num(r.rate)>=rtTarget);
   let html="";
-  if(rtTarget>5)html+=rateEdu();
+  // 無風險就能達成 → 直接推停泊
+  if(rtTarget<=2){
+    const pk=[...rates].filter(r=>num(r.rate)>=rtTarget).sort((a,b)=>num(b.rate)-num(a.rate)).slice(0,4);
+    html+=`<div class="note" style="margin-top:10px">✅ ${rtTarget}% 用「無風險停泊」就能達成（下方看板有更多）：</div>`;
+    pk.forEach(r=>html+=rateRow(r,true));
+    box.innerHTML=html;attachRateDel(box);return;
+  }
+  const hits=INSTRUMENTS.filter(x=>x.cagr>=rtTarget).sort((a,b)=>a.risk-b.risk||a.cagr-b.cagr);
+  const lowRiskHits=hits.filter(x=>x.risk<=2);
+  if(rtTarget>12)html+=rateEdu();
   if(hits.length){
-    html+=`<div class="note" style="margin-top:10px">✅ 看板上有 <b>${hits.length}</b> 個年化 ≥ ${rtTarget}% 的${rtTarget>5?"「限額促銷」":""}方案${rtTarget>5?"（額度上限很小，大額資金放不進去）":"（注意額度上限與新戶條件）"}：</div>`;
-    hits.forEach(r=>html+=rateRow(r,true));
+    html+=`<div class="note" style="margin-top:10px">依「最低風險達標」排序，歷史年化 ≥ ${rtTarget}% 的標的類型：</div>`;
+    hits.forEach(x=>html+=instRow(x,true));
+    if(!lowRiskHits.length)html+=`<div class="note">⚠️ 達到 ${rtTarget}% 的都是<b>高／極高風險</b>標的——另一條路：用中風險大盤（約 9–10%）＋「每月加投」補缺口，到「模擬」頁拉桿試算，通常更可長期執行。</div>`;
   }else{
-    const closest=sorted.slice(0,3);
-    html+=`<div class="note" style="margin-top:10px">停泊看板上最接近的方案：</div>`;
-    closest.forEach(r=>html+=rateRow(r,true));
-    if(rtTarget<=5)html+=`<div class="note">想要更高報酬（${rtTarget}%+）就已超出「無風險停泊」範圍，需承擔市場風險——可到「顧問」頁問我配置建議。</div>`;
+    html+=`<div class="note" style="margin-top:10px">參考庫中沒有長期年化 ≥ ${rtTarget}% 的標的（連極高風險的都達不到）。最高的幾個：</div>`;
+    [...INSTRUMENTS].sort((a,b)=>b.cagr-a.cagr).slice(0,3).forEach(x=>html+=instRow(x,true));
+    html+=`<div class="note">建議下修目標、拉長年限、或用「每月加投」補（模擬頁）。</div>`;
   }
   box.innerHTML=html;
+}
+function attachRateDel(box){
   box.querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
     rates.splice(+b.dataset.i,1);persist();renderRates();toast("已刪除");
   }));
 }
 function renderRates(){
   document.getElementById("ratesDate").textContent=RATES_DATE;
+  renderInst();
   renderRateSearch();
   const wrap=document.getElementById("rateList");wrap.innerHTML="";
   CAT_ORDER.forEach(cat=>{
