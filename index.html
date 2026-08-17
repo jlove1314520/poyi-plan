@@ -405,7 +405,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <div class="sheet" id="sheet">
   <div class="grab"></div>
   <h2>新增資產快照</h2>
-  <div class="note" style="margin-bottom:10px">只填有變化的欄位：<b>留空＝沿用上一筆</b>、填 <b>0＝歸零</b>。點「＋ 明細」可一筆一筆加入（多個帳戶的現金、多檔股票…），自動加總並記住明細，下次直接改單筆即可。💡 借錢時記得兩邊都記：借到的錢加進資產（如現金），同時在負債填借款金額，淨資產才正確。</div>
+  <div class="note" style="margin-bottom:10px">要<b>多記一筆</b>（例如現金再進 3 萬）→ 點該分類的「<b>＋ 加一筆</b>」：原有餘額會自動帶成第一筆，新的一筆往上<b>累加</b>，系統自動加總並記住每筆。直接在欄位打數字＝覆蓋成最後餘額；<b>留空＝沿用上一筆</b>、填 <b>0＝歸零</b>。💡 借錢時記得兩邊都記：借到的錢加進資產（如現金），同時在負債填借款金額，淨資產才正確。</div>
   <div class="f2">
     <div class="field" style="grid-column:1/-1"><label class="f">日期</label><input type="date" id="e_date"></div>
   </div>
@@ -449,7 +449,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.4";
+const APP_VER="3.8.5";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -790,7 +790,7 @@ function buildCatField(kind,c,last,keepMap){
   const d=document.createElement("div");d.className="field";
   const m=isL?(liabMeta[c]||{}):{};
   const extra=isL?[num(m.rate)>0?`利率 ${m.rate}%`:null,num(m.monthly)>0?`月還 ${fmtNum(m.monthly)}`:null].filter(Boolean).join(" · "):"";
-  d.innerHTML=`<div class="fhead"><label class="f"${isL?' style="color:var(--bad)"':''}>${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><button type="button" class="itembtn">＋ 明細</button></div><input type="number" inputmode="numeric"><div class="ilist"></div>`;
+  d.innerHTML=`<div class="fhead"><label class="f"${isL?' style="color:var(--bad)"':''}>${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><button type="button" class="itembtn">＋ 加一筆</button></div><input type="number" inputmode="numeric"><div class="ilist"></div>`;
   const inp=d.querySelector("input");
   if(isL)inp.dataset.liabcat=c;else inp.dataset.cat=c;
   const ilist=d.querySelector(".ilist");
@@ -828,13 +828,14 @@ function buildCatField(kind,c,last,keepMap){
   d.querySelector(".itembtn").addEventListener("click",()=>{
     if(!catItems[kind][c])catItems[kind][c]=[];
     const l=catItems[kind][c];
-    // 第一筆明細時，若欄位已有輸入值，帶成第一筆避免遺失
+    // 開始分筆時：欄位已有輸入值→帶成第一筆；否則自動把上次餘額帶成第一筆（分筆累加，不覆蓋）
     if(!l.length&&!inp.readOnly&&inp.value.trim()!==""&&num(inp.value)>0)l.push({n:"",a:inp.value});
+    else if(!l.length&&prev>0)l.push({n:"原有餘額",a:prev});
     l.push({n:"",a:""});
     persist();renderRows();refreshMain();
     const rows=ilist.querySelectorAll(".itemrow");
     const lastRow=rows[rows.length-1];
-    if(lastRow)lastRow.querySelector("input").focus();
+    if(lastRow)lastRow.querySelectorAll("input")[1].focus();
   });
   renderRows();refreshMain();
   return d;
