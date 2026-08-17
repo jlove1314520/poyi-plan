@@ -245,6 +245,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <h3>資產配置（最新快照）</h3>
       <div class="chartbox sm"><canvas id="allocChart"></canvas></div>
       <div class="sub" id="alloc_liab"></div>
+      <div id="alloc_lever"></div>
     </div>
 
     <div class="card mt">
@@ -386,6 +387,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <div class="sheet" id="sheet">
   <div class="grab"></div>
   <h2>新增資產快照</h2>
+  <div class="note" style="margin-bottom:10px">欄位已自動帶入上一筆數值，改動有變化的即可（清空＝歸零）。💡 借錢時記得兩邊都記：把借到的錢加進資產（如現金），同時在下方負債區填借款金額——這樣淨資產才正確，配置圖也會顯示借貸資金比例。</div>
   <div class="f2">
     <div class="field" style="grid-column:1/-1"><label class="f">日期</label><input type="date" id="e_date"></div>
   </div>
@@ -429,7 +431,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.5.2";
+const APP_VER="3.5.3";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -656,6 +658,16 @@ function renderAlloc(){
   document.getElementById("alloc_liab").innerHTML=liab>0
     ?`總資產 ${fmtBig(assetTotal(e))} − <span class="down">負債 ${fmtBig(liab)}</span> ＝ 淨資產 <b>${fmtBig(netTotal(e))}</b>`
     :`目前無負債紀錄 · 淨資產 <b>${fmtBig(netTotal(e))}</b>`;
+  // 資金來源：自有 vs 借貸
+  const lever=document.getElementById("alloc_lever");
+  const aTot=assetTotal(e);
+  if(liab>0&&aTot>0){
+    const borrowed=Math.min(liab,aTot),own=Math.max(0,aTot-liab);
+    const ownPct=Math.round(own/aTot*100),borPct=100-ownPct;
+    lever.innerHTML=`<div class="hbar" style="margin:10px 0 6px"><i style="width:${ownPct}%;background:#7A9464"></i><i style="width:${borPct}%;background:#BF4040"></i></div>
+      <div class="legend"><span><i style="background:#7A9464"></i>自有資金 ${fmtBig(own)}（${ownPct}%）</span>
+      <span><i style="background:#BF4040"></i>借貸資金 ${fmtBig(borrowed)}（${borPct}%）</span></div>`;
+  }else lever.innerHTML="";
 }
 
 // ================= 資產快照 =================
@@ -686,20 +698,24 @@ function renderCatFields(){
   const wrap=document.getElementById("catFields");wrap.innerHTML="";
   cats.forEach(c=>{
     const d=document.createElement("div");d.className="field";
-    const ph=last&&num((last.vals||{})[c])?fmtNum(num(last.vals[c])):"0";
-    d.innerHTML=`<label class="f">${esc(c)}</label><input type="number" placeholder="${ph}" inputmode="numeric">`;
-    d.querySelector("input").dataset.cat=c;
+    const prev=last?num((last.vals||{})[c]):0;
+    d.innerHTML=`<label class="f">${esc(c)}</label><input type="number" placeholder="0" inputmode="numeric">`;
+    const inp=d.querySelector("input");
+    inp.dataset.cat=c;
+    if(prev>0)inp.value=prev;
     wrap.appendChild(d);
   });
   // 負債分類欄位
   const lwrap=document.getElementById("liabFields");lwrap.innerHTML="";
   liabCats.forEach(c=>{
     const d=document.createElement("div");d.className="field";
-    const ph=last&&last.liabs&&num(last.liabs[c])?fmtNum(num(last.liabs[c])):"0";
+    const prevL=last&&last.liabs?num(last.liabs[c]):0;
     const m=liabMeta[c]||{};
     const extra=[num(m.rate)>0?`利率 ${m.rate}%`:null,num(m.monthly)>0?`月還 ${fmtNum(m.monthly)}`:null].filter(Boolean).join(" · ");
-    d.innerHTML=`<label class="f" style="color:var(--bad)">${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><input type="number" placeholder="${ph}" inputmode="numeric">`;
-    d.querySelector("input").dataset.liabcat=c;
+    d.innerHTML=`<label class="f" style="color:var(--bad)">${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><input type="number" placeholder="0" inputmode="numeric">`;
+    const linp=d.querySelector("input");
+    linp.dataset.liabcat=c;
+    if(prevL>0)linp.value=prevL;
     lwrap.appendChild(d);
   });
   // 資產分類 chips
