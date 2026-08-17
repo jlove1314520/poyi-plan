@@ -313,13 +313,14 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 
   <!-- ===== 利率情報 ===== -->
   <section class="view" id="v-rate">
-    <div class="section-t">報酬標的 · 年化推薦</div>
+    <div class="section-t">報酬率 · 投資組合搜尋</div>
     <div class="card mt">
-      <h3>目標年化搜尋</h3>
+      <h3>輸入目標年化，搜尋能達標的配置組合</h3>
       <div class="askrow">
         <input id="rt_target" type="number" step="0.1" min="0" placeholder="我要年化至少 __ %" inputmode="decimal">
-        <button class="btn sm" id="rt_go">推薦</button>
+        <button class="btn sm" id="rt_go">搜尋組合</button>
       </div>
+      <div class="note" id="rt_hint" style="margin-top:8px"></div>
       <div id="rt_result"></div>
     </div>
     <div class="card mt">
@@ -431,7 +432,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <button data-v="v-home" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5V21a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1z"/></svg>總覽</button>
   <button data-v="v-log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg>資產</button>
   <button data-v="v-hold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10m6 10V4m6 16v-7"/></svg>持股</button>
-  <button data-v="v-rate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 6H9.5a3 3 0 000 6h5a3 3 0 010 6H6"/></svg>標的</button>
+  <button data-v="v-rate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 6H9.5a3 3 0 000 6h5a3 3 0 010 6H6"/></svg>報酬率</button>
   <button data-v="v-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15.5l-1.8-4.7L5.5 9l4.7-1.3L12 3zM19 15l.9 2.3 2.1.7-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.7L19 15z"/></svg>顧問</button>
   <button data-v="v-set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 005 12a7 7 0 00.1 1.2l-2 1.5 2 3.5 2.4-1a7 7 0 002 1.2L10 21h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5A7 7 0 0019 12z"/></svg>設定</button>
 </nav>
@@ -439,7 +440,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.7.0";
+const APP_VER="3.8.0";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -1063,16 +1064,56 @@ document.getElementById("hd_snap").addEventListener("click",()=>{
 // ================= 利率情報 =================
 // ---- 報酬標的參考庫（歷史約略年化，非投資建議）----
 const INSTRUMENTS=[
- {name:"美元短債 ETF（SGOV／BIL 類）",cat:"停泊／短債",cagr:3.8,win:"現行殖利率",risk:1,rlabel:"低",note:"近無風險；美元計價有匯率波動"},
- {name:"投資級公司債（LQD 類）",cat:"債券",cagr:4.5,win:"2002– 長期約",risk:1,rlabel:"低",note:"有利率風險，升息年曾 -20% 級回撤"},
- {name:"台股高股息（0056 類）",cat:"高股息",cagr:7,win:"2007– 含息約",risk:2,rlabel:"中",note:"配息穩定，長期總報酬通常低於市值型"},
- {name:"全球股票（VT 類）",cat:"全球市場",cagr:8,win:"2008– 含息約",risk:2,rlabel:"中",note:"最分散；-50% 級回撤仍可能"},
- {name:"台股市值型（0050／006208）",cat:"台股大盤",cagr:9,win:"2003– 含息約",risk:2,rlabel:"中",note:"2008 曾 -45% 級回撤"},
- {name:"S&P 500（VOO／SPY）",cat:"美股大盤",cagr:10,win:"長期含息約",risk:2,rlabel:"中",note:"歷史 -50% 級回撤；美元計價"},
- {name:"那斯達克 100（QQQ）",cat:"美股科技",cagr:13,win:"視窗差異大：1999–約10%、2011–約18%",risk:3,rlabel:"高",note:"2000 年曾 -83%；波動劇烈"},
- {name:"台灣50正2（00631L）",cat:"槓桿型",cagr:18,win:"2014– 約（多頭期間）",risk:4,rlabel:"極高",note:"波動衰減＋深度回撤；長抱風險極高"},
- {name:"比特幣",cat:"加密貨幣",cagr:60,win:"2015– 約（極端值）",risk:4,rlabel:"極高",note:"-80% 回撤多次；歷史報酬不可外推"},
+ {name:"美元短債（SGOV／BIL 類）",short:"美元短債",cat:"停泊／短債",cagr:3.8,dd:2,win:"現行殖利率",risk:1,rlabel:"低",note:"近無風險；美元計價有匯率波動"},
+ {name:"投資級公司債（LQD 類）",short:"投等債",cat:"債券",cagr:4.5,dd:22,win:"2002– 長期約",risk:1,rlabel:"低",note:"有利率風險，升息年曾 -20% 級回撤"},
+ {name:"台股高股息（0056 類）",short:"高股息",cat:"高股息",cagr:7,dd:35,win:"2007– 含息約",risk:2,rlabel:"中",note:"配息穩定，長期總報酬通常低於市值型"},
+ {name:"全球股票（VT 類）",short:"全球股",cat:"全球市場",cagr:8,dd:50,win:"2008– 含息約",risk:2,rlabel:"中",note:"最分散；-50% 級回撤仍可能"},
+ {name:"台股市值型（0050／006208）",short:"台股大盤",cat:"台股大盤",cagr:9,dd:45,win:"2003– 含息約",risk:2,rlabel:"中",note:"2008 曾 -45% 級回撤"},
+ {name:"S&P 500（VOO／SPY）",short:"S&P500",cat:"美股大盤",cagr:10,dd:50,win:"長期含息約",risk:2,rlabel:"中",note:"歷史 -50% 級回撤；美元計價"},
+ {name:"那斯達克 100（QQQ）",short:"QQQ",cat:"美股科技",cagr:13,dd:83,win:"1999–約10%、2011–約18%",risk:3,rlabel:"高",note:"2000 年曾 -83%；波動劇烈"},
+ {name:"台灣50正2（00631L）",short:"台股正2",cat:"槓桿型",cagr:18,dd:75,win:"2014– 約（多頭期間）",risk:4,rlabel:"極高",note:"波動衰減＋深度回撤；長抱風險極高"},
+ {name:"比特幣",short:"比特幣",cat:"加密貨幣",cagr:60,dd:83,win:"2015– 約（極端值）",risk:4,rlabel:"極高",note:"-80% 回撤多次；歷史報酬不可外推"},
 ];
+const PORT_COLORS=["#5B8BAB","#D97757","#7A9464","#C9A227","#A8779B"];
+function buildPortfolios(target){
+  const A=INSTRUMENTS,res=[];
+  const push=parts=>{
+    const cagr=parts.reduce((s,p)=>s+A[p.i].cagr*p.w,0)/100;
+    if(cagr<target)return;
+    const dd=parts.reduce((s,p)=>s+A[p.i].dd*p.w,0)/100;
+    const maxRisk=Math.max(...parts.map(p=>A[p.i].risk));
+    res.push({parts,cagr,dd,maxRisk,n:parts.length});
+  };
+  for(let i=0;i<A.length;i++)push([{i,w:100}]);
+  for(let i=0;i<A.length;i++)for(let j=i+1;j<A.length;j++)
+    for(let w=10;w<=90;w+=10)push([{i,w},{i:j,w:100-w}]);
+  for(let i=0;i<A.length;i++)for(let j=i+1;j<A.length;j++)for(let k=j+1;k<A.length;k++)
+    for(let w1=10;w1<=80;w1+=10)for(let w2=10;w2<=90-w1;w2+=10)push([{i,w:w1},{i:j,w:w2},{i:k,w:100-w1-w2}]);
+  res.sort((a,b)=>a.dd-b.dd||a.maxRisk-b.maxRisk||a.n-b.n||b.cagr-a.cagr);
+  const seen=new Set(),out=[];
+  for(const p of res){
+    const k=p.parts.map(x=>x.i).sort().join(",");
+    if(seen.has(k))continue;seen.add(k);
+    out.push(p);if(out.length>=3)break;
+  }
+  return out;
+}
+function portCard(p,idx,target){
+  const A=INSTRUMENTS;
+  const parts=[...p.parts].sort((a,b)=>b.w-a.w);
+  const bar=parts.map((x,i)=>`<i style="width:${x.w}%;background:${PORT_COLORS[i%PORT_COLORS.length]}"></i>`).join("");
+  const rows=parts.map((x,i)=>`<span><i style="background:${PORT_COLORS[i%PORT_COLORS.length]}"></i>${x.w}% ${esc(A[x.i].short)} <span class="rk rk${A[x.i].risk}" style="margin-left:2px">${A[x.i].rlabel}</span></span>`).join("");
+  const tag=idx===0?"最低風險達標":idx===1?"替代方案":"替代方案 2";
+  return `<div class="card" style="margin-top:10px;border-color:var(--acc)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b style="font-size:13.5px">方案${["一","二","三"][idx]} · ${tag}</b>
+      <span style="font-size:17px;font-weight:800;color:var(--acc-d)">≈${p.cagr.toFixed(1)}<small style="font-size:11px">%/年</small></span>
+    </div>
+    <div class="hbar" style="margin:0 0 8px">${bar}</div>
+    <div class="legend" style="margin-top:0">${rows}</div>
+    <div class="note" style="margin-top:8px">⚠️ 承受風險：歷史情境下<b>最大回撤估約 -${Math.round(p.dd)}%</b>${p.maxRisk>=4?"；含極高風險成分，該部位有歸零可能":p.maxRisk>=3?"；含高波動成分":""}。發生時帳面損失你必須撐得住，否則低點停損會鎖定虧損。</div>
+  </div>`;
+}
 function instRow(x,hit){
   return `<div class="rrow${hit?" hit":""}"><div class="nm"><b>${esc(x.name)}</b><span>${esc(x.cat)} · ${esc(x.win)} · ${esc(x.note)}</span></div><div class="rt">≈${x.cagr}<small>%</small></div><span class="rk rk${x.risk}">${x.rlabel}風險</span></div>`;
 }
@@ -1103,17 +1144,18 @@ function renderRateSearch(){
     pk.forEach(r=>html+=rateRow(r,true));
     box.innerHTML=html;attachRateDel(box);return;
   }
-  const hits=INSTRUMENTS.filter(x=>x.cagr>=rtTarget).sort((a,b)=>a.risk-b.risk||a.cagr-b.cagr);
-  const lowRiskHits=hits.filter(x=>x.risk<=2);
   if(rtTarget>12)html+=rateEdu();
-  if(hits.length){
-    html+=`<div class="note" style="margin-top:10px">依「最低風險達標」排序，歷史年化 ≥ ${rtTarget}% 的標的類型：</div>`;
-    hits.forEach(x=>html+=instRow(x,true));
-    if(!lowRiskHits.length)html+=`<div class="note">⚠️ 達到 ${rtTarget}% 的都是<b>高／極高風險</b>標的——另一條路：用中風險大盤（約 9–10%）＋「每月加投」補缺口，到「模擬」頁拉桿試算，通常更可長期執行。</div>`;
+  const ports=buildPortfolios(rtTarget);
+  if(ports.length){
+    html+=`<div class="note" style="margin-top:10px">🔍 已搜尋 <b>單一／雙／三標的 × 權重組合</b>（10% 級距），以下為歷史年化可達 ${rtTarget}% 且<b>回撤最淺</b>的前三種配置：</div>`;
+    ports.forEach((p,i)=>html+=portCard(p,i,rtTarget));
+    html+=`<div class="note">估算方式：組合年化＝成分歷史年化加權（粗估，未含再平衡與相關性效果）；回撤＝成分歷史最大回撤加權（同時暴跌時實際可能更深）。含比特幣／槓桿的組合需嚴格控制比例與再平衡紀律。非投資建議。</div>`;
   }else{
-    html+=`<div class="note" style="margin-top:10px">參考庫中沒有長期年化 ≥ ${rtTarget}% 的標的（連極高風險的都達不到）。最高的幾個：</div>`;
-    [...INSTRUMENTS].sort((a,b)=>b.cagr-a.cagr).slice(0,3).forEach(x=>html+=instRow(x,true));
-    html+=`<div class="note">建議下修目標、拉長年限、或用「每月加投」補（模擬頁）。</div>`;
+    const best=buildPortfolios(0)[0];
+    html+=`<div class="note" style="margin-top:10px">😔 即使 100% 押最高風險標的，歷史年化也達不到 ${rtTarget}%。<b>最接近的極限配置</b>：</div>`;
+    const top=[...INSTRUMENTS].sort((a,b)=>b.cagr-a.cagr)[0];
+    html+=instRow(top,true);
+    html+=`<div class="note">務實建議：下修目標金額、延後目標年齡、或用「每月加投」補缺口（到模擬頁試算）。</div>`;
   }
   box.innerHTML=html;
 }
@@ -1125,6 +1167,16 @@ function attachRateDel(box){
 function renderRates(){
   document.getElementById("ratesDate").textContent=RATES_DATE;
   renderInst();
+  // 需年化一鍵帶入
+  const hint=document.getElementById("rt_hint");
+  if(hint){
+    const cur=currentNet(),goal=num(settings.goal);
+    const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
+    const req=cur>0?(Math.pow(goal/cur,1/yrs)-1)*100:0;
+    hint.innerHTML=`你的目標需年化約 <b>${req.toFixed(1)}%</b> <button type="button" class="chip" id="rt_use" style="padding:3px 10px;font-size:11px">一鍵帶入</button>`;
+    const u=document.getElementById("rt_use");
+    if(u)u.addEventListener("click",()=>{rtTarget=+req.toFixed(1);persist();renderRates();});
+  }
   renderRateSearch();
   const wrap=document.getElementById("rateList");wrap.innerHTML="";
   CAT_ORDER.forEach(cat=>{
