@@ -428,7 +428,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.6.2";
+const APP_VER="3.6.3";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -1055,6 +1055,12 @@ function rateRow(r,hit){
   const idx=rates.indexOf(r);
   return `<div class="rrow${hit?" hit":""}"><div class="nm"><b>${esc(r.name)}</b><span>${esc(r.cat)}${r.note?" · "+esc(r.note):""}</span></div><div class="rt">${num(r.rate)}<small>%</small></div><button class="del" data-i="${idx}">✕</button></div>`;
 }
+function rateEdu(){
+  const cur=currentNet(),goal=num(settings.goal);
+  const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
+  const req=cur>0?Math.pow(goal/cur,1/yrs)-1:0;
+  return `<div class="diag warn" style="margin-top:10px"><b>💡 ${rtTarget}% 不是「利率」，是「投資報酬率」</b><p>這一頁找的是「資金停泊」＝無風險報酬，天花板大約：台幣大額 1.5–2%、美元 4% 上下，更高的都是有額度上限的小額促銷。想長期拿到 ${rtTarget}%，只能承擔市場風險：參考長期年化——台股大盤含息約 9%、S&P500 約 10%；再往上需要主動策略或槓桿，且必然伴隨虧損風險。<br><br>⚠️ <b>任何宣稱「保證 ${rtTarget}%、無風險」的商品，幾乎可以肯定是詐騙。</b><br><br>你目前的需年化約 <b>${pct(req)}</b>，正確拆法：緊急預備金放停泊（本頁）→ 主力投入市場部位（到「顧問」頁看配置建議）→ 缺口用每月加投補（到「模擬」頁拉桿試算）。目標不是找一個 ${rtTarget}% 的存放處，而是組合。</p></div>`;
+}
 function renderRateSearch(){
   const box=document.getElementById("rt_result");
   document.getElementById("rt_target").value=rtTarget||"";
@@ -1062,14 +1068,15 @@ function renderRateSearch(){
   const sorted=[...rates].sort((a,b)=>num(b.rate)-num(a.rate));
   const hits=sorted.filter(r=>num(r.rate)>=rtTarget);
   let html="";
+  if(rtTarget>5)html+=rateEdu();
   if(hits.length){
-    html+=`<div class="note" style="margin-top:10px">✅ 找到 <b>${hits.length}</b> 個年化 ≥ ${rtTarget}% 的方案（注意額度上限與新戶條件）：</div>`;
+    html+=`<div class="note" style="margin-top:10px">✅ 看板上有 <b>${hits.length}</b> 個年化 ≥ ${rtTarget}% 的${rtTarget>5?"「限額促銷」":""}方案${rtTarget>5?"（額度上限很小，大額資金放不進去）":"（注意額度上限與新戶條件）"}：</div>`;
     hits.forEach(r=>html+=rateRow(r,true));
   }else{
     const closest=sorted.slice(0,3);
-    html+=`<div class="note" style="margin-top:10px">😅 目前看板上沒有年化 ≥ ${rtTarget}% 的方案。<b>最接近的替代方案</b>：</div>`;
+    html+=`<div class="note" style="margin-top:10px">停泊看板上最接近的方案：</div>`;
     closest.forEach(r=>html+=rateRow(r,true));
-    html+=`<div class="note">想要更高報酬（${rtTarget}%+）就已超出「無風險停泊」範圍，需承擔市場風險——可到「顧問」頁問我配置建議，或用「模擬」頁試算所需年化。</div>`;
+    if(rtTarget<=5)html+=`<div class="note">想要更高報酬（${rtTarget}%+）就已超出「無風險停泊」範圍，需承擔市場風險——可到「顧問」頁問我配置建議。</div>`;
   }
   box.innerHTML=html;
   box.querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
