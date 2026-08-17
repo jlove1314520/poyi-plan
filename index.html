@@ -111,8 +111,12 @@ body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
 /* forms */
 label.f{display:block;font-size:11.5px;color:var(--ink2);font-weight:700;margin-bottom:5px}
 input,select{width:100%;min-width:0;max-width:100%;padding:11px 12px;border:1px solid var(--border2);border-radius:12px;
-  background:var(--card);color:var(--ink);font-size:15px;font-family:inherit;box-sizing:border-box}
+  background:var(--card);color:var(--ink);font-size:16px;font-family:inherit;box-sizing:border-box}
 input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+/* iOS Safari 日期輸入框修正：避免原生外觀撐爆格線 */
+input[type="date"]{-webkit-appearance:none;appearance:none;display:block;
+  min-height:47px;max-height:47px;overflow:hidden;text-align:left}
+input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0}
 .f2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .f3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:10px}
 .f2>*,.f3>*{min-width:0}
@@ -357,7 +361,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
         </div>
       </div>
       <div class="f2">
-        <div class="field"><label class="f">出生日期</label><input type="date" id="s_birth"></div>
+        <div class="field" style="grid-column:1/-1"><label class="f">出生日期</label><input type="date" id="s_birth"></div>
         <div class="field"><label class="f">目標年齡</label><input type="number" id="s_targetage"></div>
         <div class="field" style="grid-column:1/-1"><label class="f">目標金額（元，可自由調整）</label><input type="number" id="s_goal"></div>
         <div class="field" style="grid-column:1/-1"><label class="f">起始資產（元）</label><input type="number" id="s_start"></div>
@@ -425,7 +429,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.5.0";
+const APP_VER="3.5.1";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -868,19 +872,28 @@ async function fetchFx(){
 }
 let refreshing=false;
 async function refreshQuotes(force){
-  if(refreshing)return;
+  if(refreshing){if(force)toast("正在更新中，請稍候…");return;}
   const need=holdings.filter(h=>h.shares!=null);
-  if(!need.length){setQStatus();return;}
+  if(!need.length){
+    setQStatus();
+    if(force)toast(holdings.length?"目前持股都是手動市值，無需抓報價":"尚無持股，先新增一檔吧");
+    return;
+  }
   const stale=q=>!q||(Date.now()-q.t)>30*60*1000;
   const targets=force?need:need.filter(h=>stale(quotes[hKey(h)]));
   if(!targets.length){setQStatus();return;}
   refreshing=true;setQStatus("更新中…");
-  if(need.some(h=>h.mkt==="US")&&(force||(Date.now()-fx.t)>30*60*1000))await fetchFx();
-  let ok=0,fail=0;
-  for(const h of targets){try{await fetchQuote(h);ok++;}catch(e){fail++;}}
-  refreshing=false;persist();setQStatus();renderHold();
-  if(fail)toast(`報價更新：${ok} 成功、${fail} 失敗（確認代號是否正確）`);
-  else if(ok)toast("報價已更新 ✓");
+  if(force)toast("抓取最新報價中…");
+  try{
+    if(need.some(h=>h.mkt==="US")&&(force||(Date.now()-fx.t)>30*60*1000))await fetchFx();
+    let ok=0,fail=0;
+    for(const h of targets){try{await fetchQuote(h);ok++;}catch(e){fail++;}}
+    persist();
+    if(fail)toast(`報價更新：${ok} 成功、${fail} 失敗（失敗者請確認代號／網路）`);
+    else if(ok)toast("報價已更新 ✓");
+  }finally{
+    refreshing=false;setQStatus();renderHold();
+  }
 }
 function setQStatus(txt){
   const el=document.getElementById("q_status");if(!el)return;
