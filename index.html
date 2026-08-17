@@ -233,11 +233,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
     </div>
 
     <div class="card mt">
-      <h3 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">資產成長軌跡
-        <span style="display:flex;gap:6px">
-          <button type="button" class="chip" id="gm_all" style="padding:4px 10px;font-size:11px">目標全程</button>
-          <button type="button" class="chip" id="gm_hist" style="padding:4px 10px;font-size:11px">實際紀錄</button>
-        </span></h3>
+      <h3>資產成長軌跡（實際紀錄 → 目標）</h3>
       <div class="chartbox"><canvas id="growthChart"></canvas></div>
       <div class="legend" id="growthLegend"></div>
     </div>
@@ -432,7 +428,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.6.1";
+const APP_VER="3.6.2";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -623,37 +619,31 @@ function axisMonths(){
   if(arr[arr.length-1]<e)arr.push(new Date(e));
   return arr;
 }
-let growthMode=(function(){try{return localStorage.getItem("bp_growthmode")||"all";}catch(e){return "all";}})();
 function renderGrowth(){
   const s=sortedLogs();
-  const uniqueDates=[...new Set(s.map(e=>e.date))];
-  const histOK=uniqueDates.length>=2;
-  const mode=(growthMode==="hist"&&histOK)?"hist":"all";
-  const ga=document.getElementById("gm_all"),gh=document.getElementById("gm_hist");
-  if(ga){ga.classList.toggle("on",mode==="all");gh.classList.toggle("on",mode==="hist");}
-  let labels;
-  if(mode==="hist"){
-    labels=uniqueDates;
-  }else{
-    // 軸起點涵蓋最早紀錄；有紀錄的月份用「實際日期」當座標（同月多筆也能連線）
-    const startISO=(s.length&&s[0].date<settings.startDate)?s[0].date:settings.startDate;
-    const months=[];{
-      const sd=new Date(startISO),e=targetDate();
-      let d=new Date(sd.getFullYear(),sd.getMonth(),1);
-      while(d<=e){months.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()+1);}
+  // 混合時間軸：歷史段＝實際紀錄日期（每筆等寬，近期看得清）；未來段＝每年一個錨點直到目標日
+  const hist=[...new Set(s.map(e=>e.date))];
+  const cd=currentDate();
+  const anchors=[];
+  {
+    const t=targetISO();
+    let d=new Date(cd);
+    for(let i=0;i<60;i++){
+      d=new Date(d.getFullYear()+1,d.getMonth(),Math.min(d.getDate(),28));
+      const iso=d.toISOString().slice(0,10);
+      if(iso>=t){anchors.push(t);break;}
+      anchors.push(iso);
     }
-    const byMonth={};
-    s.forEach(en=>{const m=en.date.slice(0,7);(byMonth[m]=byMonth[m]||[]).push(en.date);});
-    labels=[];
-    months.forEach(m=>{
-      if(byMonth[m]){[...new Set(byMonth[m])].forEach(d=>labels.push(d));}
-      else labels.push(m);
-    });
   }
-  const isoOf=l=>l.length>7?l:l+"-15";
-  const required=labels.map(l=>Math.round(requiredPathValue(isoOf(l))));
-  const cur=currentNet(),cd=currentDate();
-  const expected=labels.map(l=>{const y=yearsBetween(cd,isoOf(l));return y<0?null:Math.round(fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,y));});
+  const labels=[...hist,...anchors];
+  const histN=hist.length;
+  const required=labels.map(l=>Math.round(requiredPathValue(l)));
+  const cur=currentNet();
+  const expected=labels.map((l,i)=>{
+    if(i<histN-1)return null; // 預估線從最新紀錄接出去
+    const y=yearsBetween(cd,l);
+    return y<0?null:Math.round(fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,y));
+  });
   const byDate={};
   s.forEach(en=>{byDate[en.date]={net:Math.round(netTotal(en)),tot:Math.round(assetTotal(en))};});
   const actual=labels.map(l=>byDate[l]?byDate[l].net:null);
@@ -664,19 +654,18 @@ function renderGrowth(){
   const g=ctx.createLinearGradient(0,0,0,235);
   g.addColorStop(0,"rgba(217,119,87,.22)");g.addColorStop(1,"rgba(217,119,87,0)");
   const ds=[
-    {label:"達標軌道",data:required,borderColor:"#B3B0A6",borderDash:[5,5],borderWidth:1.6,pointRadius:mode==="hist"?2:0,pointBackgroundColor:"#B3B0A6",tension:.25},
+    {label:"達標軌道",data:required,borderColor:"#B3B0A6",borderDash:[5,5],borderWidth:1.6,pointRadius:0,tension:.25},
+    {label:"假設預估",data:expected,borderColor:"#7A9464",borderWidth:1.8,pointRadius:0,tension:.25,spanGaps:true},
   ];
-  if(mode!=="hist")ds.push({label:"假設預估",data:expected,borderColor:"#7A9464",borderWidth:1.8,pointRadius:0,tension:.25,spanGaps:true});
   if(hasLiab)ds.push({label:"總資產",data:totalA,borderColor:"#8A8778",borderWidth:1.8,
     pointRadius:3,pointBackgroundColor:"#8A8778",pointBorderColor:"#FFFFFF",pointBorderWidth:1,tension:.25,spanGaps:true});
-  ds.push({label:"淨資產（實際）",data:actual,borderColor:"#D97757",backgroundColor:g,fill:mode!=="hist",borderWidth:2.5,
+  ds.push({label:"淨資產（實際）",data:actual,borderColor:"#D97757",backgroundColor:g,fill:true,borderWidth:2.5,
     pointRadius:3.5,pointBackgroundColor:"#D97757",pointBorderColor:"#FFFFFF",pointBorderWidth:1.5,tension:.25,spanGaps:true});
   growthChart=new Chart(ctx,{type:"line",data:{labels,datasets:ds},options:chartOpts()});
   const lg=document.getElementById("growthLegend");
   if(lg)lg.innerHTML=`<span><i style="background:#D97757"></i>淨資產（實際）</span>`
     +(hasLiab?`<span><i style="background:#8A8778"></i>總資產</span>`:"")
-    +`<span><i style="background:#B3B0A6"></i>達標軌道</span>`
-    +(mode!=="hist"?`<span><i style="background:#7A9464"></i>假設預估</span>`:"");
+    +`<span><i style="background:#B3B0A6"></i>達標軌道</span><span><i style="background:#7A9464"></i>假設預估</span>`;
 }
 function ageAtYM(l){return Math.floor(yearsBetween(settings.birth,l.length>7?l:l+"-15"));}
 function chartOpts(){
@@ -1366,12 +1355,6 @@ function refreshAll(){
   if(document.getElementById("v-home").classList.contains("active")){renderGrowth();renderAlloc();}
   if(document.getElementById("v-hold").classList.contains("active")){renderHold();}
 }
-document.getElementById("gm_all").addEventListener("click",()=>{growthMode="all";try{localStorage.setItem("bp_growthmode","all");}catch(e){}renderGrowth();});
-document.getElementById("gm_hist").addEventListener("click",()=>{
-  const n=[...new Set(logs.map(e=>e.date))].length;
-  if(n<2){toast("至少需要 2 個不同日期的紀錄");return;}
-  growthMode="hist";try{localStorage.setItem("bp_growthmode","hist");}catch(e){}renderGrowth();
-});
 document.getElementById("verLabel").textContent="v"+APP_VER;
 fillSettings();
 refreshAll();
