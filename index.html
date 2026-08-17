@@ -234,11 +234,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
     <div class="card mt">
       <h3>資產成長軌跡</h3>
       <div class="chartbox"><canvas id="growthChart"></canvas></div>
-      <div class="legend">
-        <span><i style="background:#D97757"></i>實際</span>
-        <span><i style="background:#B3B0A6"></i>達標軌道</span>
-        <span><i style="background:#7A9464"></i>假設預估</span>
-      </div>
+      <div class="legend" id="growthLegend"></div>
     </div>
 
     <div class="card mt">
@@ -431,7 +427,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.5.3";
+const APP_VER="3.6.0";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -586,7 +582,13 @@ function renderHome(){
   else if(cur>=reqNow*.98)s1=`<span class="pill warn">● 貼近達標軌道</span>`;
   else s1=`<span class="pill crit">● 落後軌道 ${fmtBig(reqNow-cur)}</span>`;
   const s2=proj>=goal?`<span class="pill good">依假設可達標 ✓</span>`:`<span class="pill warn">依假設約 ${fmtBig(proj)}</span>`;
-  document.getElementById("h_pills").innerHTML=s1+s2;
+  let s3="";
+  const sl=sortedLogs(),le=sl[sl.length-1];
+  if(le&&liabTotal(le)>0&&netTotal(le)>0){
+    const lv=assetTotal(le)/netTotal(le);
+    s3=`<span class="pill ${lv>2?"crit":lv>1.5?"warn":"good"}">槓桿 ${lv.toFixed(2)}x</span>`;
+  }
+  document.getElementById("h_pills").innerHTML=s1+s2+s3;
   const s=sortedLogs(),act=document.getElementById("h_act"),asub=document.getElementById("h_act_sub");
   if(s.length>=2){
     const y=yearsBetween(s[0].date,s[s.length-1].date),v0=netTotal(s[0]),v1=netTotal(s[s.length-1]);
@@ -614,16 +616,26 @@ function renderGrowth(){
   const expected=ax.map(d=>{const y=yearsBetween(cd,d.toISOString().slice(0,10));return y<0?null:Math.round(fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,y));});
   const pts=sortedLogs().map(e=>({x:e.date.slice(0,7),y:Math.round(netTotal(e))}));
   const actual=labels.map(l=>{const m=pts.filter(p=>p.x===l).pop();return m?m.y:null;});
+  const hasLiab=sortedLogs().some(e=>liabTotal(e)>0);
+  const aPts=sortedLogs().map(e=>({x:e.date.slice(0,7),y:Math.round(assetTotal(e))}));
+  const totalA=labels.map(l=>{const m=aPts.filter(p=>p.x===l).pop();return m?m.y:null;});
   if(growthChart)growthChart.destroy();
   const ctx=document.getElementById("growthChart").getContext("2d");
   const g=ctx.createLinearGradient(0,0,0,235);
   g.addColorStop(0,"rgba(217,119,87,.22)");g.addColorStop(1,"rgba(217,119,87,0)");
-  growthChart=new Chart(ctx,{type:"line",data:{labels,datasets:[
+  const ds=[
     {label:"達標軌道",data:required,borderColor:"#B3B0A6",borderDash:[5,5],borderWidth:1.6,pointRadius:0,tension:.25},
     {label:"假設預估",data:expected,borderColor:"#7A9464",borderWidth:1.8,pointRadius:0,tension:.25,spanGaps:true},
-    {label:"實際",data:actual,borderColor:"#D97757",backgroundColor:g,fill:true,borderWidth:2.5,
-     pointRadius:3.5,pointBackgroundColor:"#D97757",pointBorderColor:"#FFFFFF",pointBorderWidth:1.5,tension:.25,spanGaps:true},
-  ]},options:chartOpts()});
+  ];
+  if(hasLiab)ds.push({label:"總資產",data:totalA,borderColor:"#8A8778",borderWidth:1.8,
+    pointRadius:3,pointBackgroundColor:"#8A8778",pointBorderColor:"#FFFFFF",pointBorderWidth:1,tension:.25,spanGaps:true});
+  ds.push({label:"淨資產（實際）",data:actual,borderColor:"#D97757",backgroundColor:g,fill:true,borderWidth:2.5,
+    pointRadius:3.5,pointBackgroundColor:"#D97757",pointBorderColor:"#FFFFFF",pointBorderWidth:1.5,tension:.25,spanGaps:true});
+  growthChart=new Chart(ctx,{type:"line",data:{labels,datasets:ds},options:chartOpts()});
+  const lg=document.getElementById("growthLegend");
+  if(lg)lg.innerHTML=`<span><i style="background:#D97757"></i>淨資產（實際）</span>`
+    +(hasLiab?`<span><i style="background:#8A8778"></i>總資產</span>`:"")
+    +`<span><i style="background:#B3B0A6"></i>達標軌道</span><span><i style="background:#7A9464"></i>假設預估</span>`;
 }
 function ageAtYM(ym){return Math.floor(yearsBetween(settings.birth,ym+"-15"));}
 function chartOpts(){
@@ -644,23 +656,38 @@ function chartOpts(){
 // ================= 配置圖 =================
 function renderAlloc(){
   const s=sortedLogs(),e=s[s.length-1]||{vals:{}};
-  const items=Object.entries(e.vals||{}).map(([k,v])=>[k,num(v)]).filter(([,v])=>v>0)
-    .sort((a,b)=>b[1]-a[1]);
-  const colors=["#5B8BAB","#D97757","#7A9464","#C9A227","#A8779B","#8A8778","#6B7FA3","#B98A5E","#7E9E9B","#9B8AA6"];
+  const assets=Object.entries(e.vals||{}).map(([k,v])=>({k,v:num(v),neg:false})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  const liabs=Object.entries(e.liabs||{}).map(([k,v])=>({k,v:num(v),neg:true})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  const items=[...assets,...liabs];
+  const colors=["#5B8BAB","#D97757","#7A9464","#C9A227","#A8779B","#6B7FA3","#B98A5E","#7E9E9B","#9B8AA6","#CB8589"];
+  const liabColors=["#75736E","#908E89","#ABA9A3","#5C5A55","#BCBAB4"];
+  const aTot=assetTotal(e),net=netTotal(e);
   if(allocChart)allocChart.destroy();
   allocChart=new Chart(document.getElementById("allocChart"),{type:"doughnut",
-    data:{labels:items.map(c=>c[0]),datasets:[{data:items.map(c=>c[1]),
-      backgroundColor:items.map((_,i)=>colors[i%colors.length]),borderColor:"#FFFFFF",borderWidth:3,borderRadius:5}]},
+    data:{labels:items.map(x=>x.k),datasets:[{data:items.map(x=>x.v),
+      backgroundColor:items.map(x=>x.neg?liabColors[liabs.indexOf(x)%liabColors.length]:colors[assets.indexOf(x)%colors.length]),
+      borderColor:"#FFFFFF",borderWidth:3,borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
-      plugins:{legend:{position:"right",labels:{color:"#5E5B52",font:{size:11.5},boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true}},
-      tooltip:{backgroundColor:"rgba(31,30,27,.95)",callbacks:{label:c=>c.label+"："+fmtBig(c.parsed)}}}}});
+      plugins:{legend:{position:"right",labels:{color:"#5E5B52",font:{size:11},boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true,
+        generateLabels:chart=>items.map((x,i)=>({text:(x.neg?"− ":"")+x.k,fillStyle:chart.data.datasets[0].backgroundColor[i],strokeStyle:"transparent",hidden:false,index:i}))}},
+      tooltip:{backgroundColor:"rgba(31,30,27,.95)",callbacks:{label:c=>{
+        const it=items[c.dataIndex];const pct=aTot>0?((it.neg?-1:1)*it.v/aTot*100).toFixed(1):0;
+        return `${it.k}：${it.neg?"−":""}${fmtBig(it.v)}（${pct}%）`;}}}},
+    },
+    plugins:[{id:"centerNet",afterDraw(chart){
+      const m=chart.getDatasetMeta(0);if(!m.data||!m.data[0])return;
+      const x=m.data[0].x,y=m.data[0].y,ctx=chart.ctx;
+      ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillStyle="#96938B";ctx.font="600 11px system-ui";ctx.fillText("淨資產",x,y-13);
+      ctx.fillStyle="#1F1E1B";ctx.font="700 15px Georgia,serif";ctx.fillText(fmtBig(net),x,y+8);
+      ctx.restore();}}]
+  });
   const liab=liabTotal(e);
   document.getElementById("alloc_liab").innerHTML=liab>0
-    ?`總資產 ${fmtBig(assetTotal(e))} − <span class="down">負債 ${fmtBig(liab)}</span> ＝ 淨資產 <b>${fmtBig(netTotal(e))}</b>`
+    ?`總資產 ${fmtBig(assetTotal(e))} − <span class="down">負債 ${fmtBig(liab)}</span> ＝ 淨資產 <b>${fmtBig(netTotal(e))}</b>${netTotal(e)>0?` · 槓桿比 <b>${(assetTotal(e)/netTotal(e)).toFixed(2)}</b>`:""}`
     :`目前無負債紀錄 · 淨資產 <b>${fmtBig(netTotal(e))}</b>`;
   // 資金來源：自有 vs 借貸
   const lever=document.getElementById("alloc_lever");
-  const aTot=assetTotal(e);
   if(liab>0&&aTot>0){
     const borrowed=Math.min(liab,aTot),own=Math.max(0,aTot-liab);
     const ownPct=Math.round(own/aTot*100),borPct=100-ownPct;
