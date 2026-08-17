@@ -597,13 +597,17 @@ function renderGrowth(){
      pointRadius:3.5,pointBackgroundColor:"#D97757",pointBorderColor:"#FFFFFF",pointBorderWidth:1.5,tension:.25,spanGaps:true},
   ]},options:chartOpts()});
 }
+function ageAtYM(ym){return Math.floor(yearsBetween(settings.birth,ym+"-15"));}
 function chartOpts(){
   return {responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
     plugins:{legend:{display:false},tooltip:{
       backgroundColor:"rgba(31,30,27,.95)",titleColor:"#fff",bodyColor:"#D9D5C9",padding:10,cornerRadius:10,
-      callbacks:{label:c=>c.dataset.label+"："+(c.parsed.y==null?"—":fmtBig(c.parsed.y))}}},
+      callbacks:{
+        title:items=>{const l=items[0].label;return l+"（"+ageAtYM(l)+" 歲）";},
+        label:c=>c.dataset.label+"："+(c.parsed.y==null?"—":fmtBig(c.parsed.y))}}},
     scales:{
-      x:{grid:{color:"#EFEDE4"},ticks:{color:"#96938B",maxTicksLimit:6,font:{size:10}}},
+      x:{grid:{color:"#EFEDE4"},ticks:{color:"#96938B",maxTicksLimit:6,font:{size:10},
+        callback:function(v){const l=this.getLabelForValue(v);return [l,ageAtYM(l)+" 歲"];}}},
       y:{grid:{color:"#EFEDE4"},ticks:{color:"#96938B",font:{size:10},
         callback:v=>{if(dispUSD()){const u=v/num(fx.rate);return u>=1e6?(u/1e6).toFixed(1)+"M":(u/1e3).toFixed(0)+"K";}
           return v>=1e8?(v/1e8).toFixed(1)+"億":(v/1e4).toFixed(0)+"萬";}}}}};
