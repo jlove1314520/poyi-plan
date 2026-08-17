@@ -98,6 +98,7 @@ body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
 .plv{font-size:11px;font-weight:750}
 .mkt-tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;letter-spacing:.05em}
 .mkt-TW{background:#E4EDF5;color:#3D6B8E}.mkt-US{background:var(--acc-soft);color:var(--acc-d)}
+.mkt-CR{background:#F5EFDC;color:#8A6D1A}
 /* rates */
 .rcat{font-family:var(--serif);font-size:15px;font-weight:700;margin:18px 0 6px}
 .rrow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);
@@ -292,12 +293,12 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <h3>新增持股（自動抓報價算市值）</h3>
       <div class="f2">
         <div class="field"><label class="f">市場</label>
-          <select id="hd_mkt"><option value="TW">台股（上市/上櫃）</option><option value="US">美股</option></select></div>
+          <select id="hd_mkt"><option value="TW">台股（上市/上櫃）</option><option value="US">美股</option><option value="CR">加密貨幣</option></select></div>
         <div class="field"><label class="f">代號</label><input id="hd_ticker" placeholder="2330 / NVDA"></div>
-        <div class="field"><label class="f">股數</label><input id="hd_shares" type="number" inputmode="decimal" placeholder="1000"></div>
-        <div class="field"><label class="f">每股成本</label><input id="hd_cost" type="number" inputmode="decimal" placeholder="0" step="0.01"></div>
-        <div class="field" id="hd_curwrap" style="display:none;grid-column:1/-1"><label class="f">成本幣別（美股）</label>
-          <select id="hd_costcur"><option value="USD">美金 USD</option><option value="TWD">台幣 TWD（複委託成本）</option></select></div>
+        <div class="field"><label class="f" id="hd_shares_l">股數</label><input id="hd_shares" type="number" inputmode="decimal" placeholder="1000" step="any"></div>
+        <div class="field"><label class="f" id="hd_cost_l">每股成本</label><input id="hd_cost" type="number" inputmode="decimal" placeholder="0" step="any"></div>
+        <div class="field" id="hd_curwrap" style="display:none;grid-column:1/-1"><label class="f">成本幣別</label>
+          <select id="hd_costcur"><option value="USD">美金 USD／USDT</option><option value="TWD">台幣 TWD</option></select></div>
       </div>
       <div class="note" id="hd_preview" style="display:none;margin-bottom:10px"></div>
       <button class="btn sm" id="hd_add">加入持股</button>
@@ -307,7 +308,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       </div>
     </div>
     <div class="card mt">
-      <h3>台股 vs 美股</h3>
+      <h3>市場配置（台股／美股／加密）</h3>
       <div class="hbar" id="mktBar"></div>
       <div class="legend" id="mktLegend"></div>
     </div>
@@ -317,7 +318,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <div class="empty" id="holdEmpty" style="display:none;padding:18px 0">尚無持股，先在上方新增</div>
     </div>
     <button class="btn line mt" id="hd_snap">用持股金額建立今日快照</button>
-    <div class="note">「建立今日快照」會以台股／美股持股合計，搭配最近一筆快照的其他欄位，快速生成今天的紀錄。</div>
+    <div class="note">「建立今日快照」會以台股／美股／加密貨幣持股合計，搭配最近一筆快照的其他欄位，快速生成今天的紀錄。加密幣為 Binance USDT 即時價 × 匯率換算台幣。</div>
   </section>
 
   <!-- ===== 利率情報 ===== -->
@@ -449,7 +450,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.5";
+const APP_VER="3.8.6";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -949,17 +950,18 @@ document.getElementById("e_add").addEventListener("click",()=>{
 // ---- 報價引擎（FinMind 台/美股收盤價 + er-api 匯率，皆免金鑰）----
 function hKey(h){return h.mkt+":"+h.ticker;}
 function hPrice(h){const q=quotes[hKey(h)];return q?num(q.price):null;}
-function hCostNative(h){ // 成本換算成報價幣別（台股→台幣、美股→美元）
-  if(h.mkt==="US"&&h.costCur==="TWD")return num(h.cost)/num(fx.rate);
+function usdMkt(m){return m==="US"||m==="CR";} // 報價幣別為 USD/USDT 的市場
+function hCostNative(h){ // 成本換算成報價幣別（台股→台幣、美股→美元、加密→USDT）
+  if(usdMkt(h.mkt)&&h.costCur==="TWD")return num(h.cost)/num(fx.rate);
   return num(h.cost);
 }
 function hVal(h){ // 市值（台幣）
   if(h.shares==null)return num(h.value); // 舊資料：手動市值
   const p=hPrice(h);
-  if(p!=null)return num(h.shares)*p*(h.mkt==="US"?num(fx.rate):1);
+  if(p!=null)return num(h.shares)*p*(usdMkt(h.mkt)?num(fx.rate):1);
   // 沒報價 → 用成本估
   const c=num(h.cost);
-  if(h.mkt==="US")return h.costCur==="TWD"?num(h.shares)*c:num(h.shares)*c*num(fx.rate);
+  if(usdMkt(h.mkt))return h.costCur==="TWD"?num(h.shares)*c:num(h.shares)*c*num(fx.rate);
   return num(h.shares)*c;
 }
 function hPL(h){ // 損益%（原幣比較）
@@ -970,10 +972,27 @@ function hPL(h){ // 損益%（原幣比較）
 }
 // ---- 股票名稱庫（FinMind StockInfo，快取 30 天）----
 let names=loadJSON("bp_names",null); if(!names||typeof names!=="object")names={TW:{},US:{},t:0};
+if(!names.CR)names.CR={};
 function saveNames(){try{localStorage.setItem("bp_names",JSON.stringify(names));}catch(e){}}
-function tickerName(mkt,tk){return (names[mkt]||{})[tk]||"";}
+// 常見幣內建名稱表（查不到再問 CoinGecko）
+const CRYPTO_NAMES={BTC:"Bitcoin 比特幣",ETH:"Ethereum 以太幣",USDT:"Tether 泰達幣",USDC:"USD Coin",BNB:"BNB 幣安幣",XRP:"XRP 瑞波",SOL:"Solana",ADA:"Cardano",DOGE:"Dogecoin 狗狗幣",TRX:"TRON 波場",DOT:"Polkadot",POL:"Polygon",MATIC:"Polygon",LTC:"Litecoin 萊特幣",AVAX:"Avalanche",LINK:"Chainlink",SHIB:"Shiba Inu 柴犬幣",TON:"Toncoin",XLM:"Stellar",BCH:"Bitcoin Cash",UNI:"Uniswap",ATOM:"Cosmos",FIL:"Filecoin",APT:"Aptos",ARB:"Arbitrum",OP:"Optimism",NEAR:"NEAR",SUI:"Sui",PEPE:"Pepe"};
+function tickerName(mkt,tk){
+  if(mkt==="CR")return (names.CR||{})[tk]||CRYPTO_NAMES[tk]||"";
+  return (names[mkt]||{})[tk]||"";
+}
+// 加密幣名稱：內建表 → CoinGecko search（快取）
+async function cryptoName(tk){
+  const hit=tickerName("CR",tk);if(hit)return hit;
+  try{
+    const d=await jfetch("https://api.coingecko.com/api/v3/search?query="+encodeURIComponent(tk),10000);
+    const c=(d.coins||[]).find(x=>String(x.symbol).toUpperCase()===tk)||(d.coins||[])[0];
+    if(c&&c.name){names.CR[tk]=c.name;saveNames();return c.name;}
+  }catch(e){}
+  return "";
+}
 let namesLoading={};
 async function loadNames(mkt){
+  if(mkt==="CR")return; // 加密幣走 cryptoName（單檔查詢）
   if(names[mkt]&&Object.keys(names[mkt]).length>100&&Date.now()-(names.t||0)<30*864e5)return;
   if(namesLoading[mkt])return namesLoading[mkt];
   namesLoading[mkt]=(async()=>{
@@ -989,9 +1008,11 @@ async function loadNames(mkt){
   return namesLoading[mkt];
 }
 async function backfillNames(){
-  const mkts=[...new Set(holdings.filter(h=>h.shares!=null&&!h.name).map(h=>h.mkt))];
-  if(!mkts.length)return;
+  const need=holdings.filter(h=>h.shares!=null&&!h.name);
+  if(!need.length)return;
+  const mkts=[...new Set(need.map(h=>h.mkt))];
   for(const m of mkts)await loadNames(m);
+  for(const h of need.filter(h=>h.mkt==="CR"))await cryptoName(h.ticker);
   let ch=false;
   holdings.forEach(h=>{if(!h.name){const n=tickerName(h.mkt,h.ticker);if(n){h.name=n;ch=true;}}});
   if(ch){persist();renderHold();}
@@ -1005,8 +1026,8 @@ async function updatePreview(){
   const tk=document.getElementById("hd_ticker").value.trim().toUpperCase();
   if(!tk){el.style.display="none";return;}
   el.style.display="block";el.textContent="查詢中…";
-  await loadNames(mkt);
-  if(mkt==="US"&&!fx.t)await fetchFx();
+  if(mkt==="CR")await cryptoName(tk);else await loadNames(mkt);
+  if(usdMkt(mkt)&&!fx.t)await fetchFx();
   const key=mkt+":"+tk;
   if(!quotes[key]){try{await fetchQuote({mkt,ticker:tk});persist();}catch(e){}}
   // 使用者可能已改輸入，重讀
@@ -1016,17 +1037,22 @@ async function updatePreview(){
   const sh=num(document.getElementById("hd_shares").value);
   let txt=nm?`✔ ${nm}（${tk}）`:`⚠️ 名稱庫查無「${tk}」，請確認代號（仍可加入）`;
   if(q){
-    txt+=` · 現價 ${q.price}${mkt==="US"?" USD":""}（${q.date} 收盤）`;
+    txt+=` · 現價 ${q.price}${mkt==="CR"?" USDT":mkt==="US"?" USD":""}（${q.live?"即時":q.date+" 收盤"}）`;
     if(sh>0){
-      const v=sh*num(q.price)*(mkt==="US"?num(fx.rate):1);
-      txt+=` · ${fmtNum(sh)} 股 ≈ NT$ ${fmtNum(v)}${mkt==="US"?`（US$ ${fmtNum(v/num(fx.rate))}）`:""}`;
+      const v=sh*num(q.price)*(usdMkt(mkt)?num(fx.rate):1);
+      txt+=` · ${mkt==="CR"?sh:fmtNum(sh)} ${mkt==="CR"?"顆":"股"} ≈ NT$ ${fmtNum(v)}${usdMkt(mkt)?`（US$ ${fmtNum(v/num(fx.rate))}）`:""}`;
     }
   }else if(!nm){txt+=" · 抓不到報價";}
   el.textContent=txt;
 }
 ["hd_ticker","hd_shares"].forEach(id=>document.getElementById(id).addEventListener("input",schedPreview));
 document.getElementById("hd_mkt").addEventListener("change",()=>{
-  document.getElementById("hd_curwrap").style.display=document.getElementById("hd_mkt").value==="US"?"block":"none";
+  const m=document.getElementById("hd_mkt").value;
+  document.getElementById("hd_curwrap").style.display=usdMkt(m)?"block":"none";
+  document.getElementById("hd_ticker").placeholder=m==="CR"?"BTC / ETH / DOGE":"2330 / NVDA";
+  document.getElementById("hd_shares_l").textContent=m==="CR"?"數量（可小數）":"股數";
+  document.getElementById("hd_cost_l").textContent=m==="CR"?"每顆成本":"每股成本";
+  document.getElementById("hd_shares").placeholder=m==="CR"?"0.5":"1000";
   schedPreview();
 });
 async function jfetch(url,to){
@@ -1035,6 +1061,14 @@ async function jfetch(url,to){
   finally{clearTimeout(id);}
 }
 async function fetchQuote(h){
+  if(h.mkt==="CR"){ // 加密幣：Binance USDT 現貨即時價
+    if(h.ticker==="USDT"||h.ticker==="USDC"){quotes[hKey(h)]={price:1,date:todayISO(),live:true,t:Date.now()};return;}
+    const d=await jfetch("https://api.binance.com/api/v3/ticker/price?symbol="+encodeURIComponent(h.ticker+"USDT"),10000);
+    const price=num(d&&d.price);
+    if(price<=0)throw new Error("bad price");
+    quotes[hKey(h)]={price,date:todayISO(),live:true,t:Date.now()};
+    return;
+  }
   const from=new Date(Date.now()-14*864e5).toISOString().slice(0,10);
   const ds=h.mkt==="TW"?"TaiwanStockPrice":"USStockPrice";
   const d=await jfetch(`https://api.finmindtrade.com/api/v4/data?dataset=${ds}&data_id=${encodeURIComponent(h.ticker)}&start_date=${from}`);
@@ -1063,7 +1097,7 @@ async function refreshQuotes(force){
   refreshing=true;setQStatus("更新中…");
   if(force)toast("抓取最新報價中…");
   try{
-    if(need.some(h=>h.mkt==="US")&&(force||(Date.now()-fx.t)>30*60*1000))await fetchFx();
+    if(need.some(h=>usdMkt(h.mkt))&&(force||(Date.now()-fx.t)>30*60*1000))await fetchFx();
     let ok=0,fail=0;
     for(const h of targets){try{await fetchQuote(h);ok++;}catch(e){fail++;}}
     persist();
@@ -1079,34 +1113,35 @@ function setQStatus(txt){
   const qs=holdings.filter(h=>h.shares!=null).map(h=>quotes[hKey(h)]).filter(Boolean);
   if(!qs.length){el.textContent="報價：尚未更新";return;}
   const d=qs.map(q=>q.date).sort().pop();
-  el.innerHTML=`報價：<b>${d}</b> 收盤${holdings.some(h=>h.mkt==="US")?` · USD/TWD ${num(fx.rate).toFixed(2)}`:""}`;
+  el.innerHTML=`報價：<b>${d}</b>${holdings.some(h=>h.mkt==="CR")&&holdings.every(h=>h.shares==null||h.mkt==="CR")?" 即時":" 收盤"}${holdings.some(h=>usdMkt(h.mkt))?` · USD/TWD ${num(fx.rate).toFixed(2)}`:""}`;
 }
+const MKT_META={TW:{label:"台股",color:"#5B8BAB",unit:"股"},US:{label:"美股",color:"#D97757",unit:"股"},CR:{label:"加密",color:"#C9A227",unit:"顆"}};
 function renderHold(){
   const list=document.getElementById("holdList");list.innerHTML="";
   document.getElementById("holdEmpty").style.display=holdings.length?"none":"block";
-  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+hVal(h),0);
-  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+hVal(h),0);
-  const tot=twSum+usSum;
+  const sums={};["TW","US","CR"].forEach(m=>sums[m]=holdings.filter(h=>h.mkt===m).reduce((a,h)=>a+hVal(h),0));
+  const tot=sums.TW+sums.US+sums.CR;
   const bar=document.getElementById("mktBar");
-  bar.innerHTML=tot>0?`<i style="width:${twSum/tot*100}%;background:#5B8BAB"></i><i style="width:${usSum/tot*100}%;background:#D97757"></i>`:"";
+  bar.innerHTML=tot>0?["TW","US","CR"].filter(m=>sums[m]>0).map(m=>`<i style="width:${sums[m]/tot*100}%;background:${MKT_META[m].color}"></i>`).join(""):"";
   document.getElementById("mktLegend").innerHTML=tot>0
-    ?`<span><i style="background:#5B8BAB"></i>台股 ${fmtBig(twSum)}（${(twSum/tot*100).toFixed(1)}%）</span>
-      <span><i style="background:#D97757"></i>美股 ${fmtBig(usSum)}（${(usSum/tot*100).toFixed(1)}%）</span>`
+    ?["TW","US","CR"].filter(m=>sums[m]>0).map(m=>`<span><i style="background:${MKT_META[m].color}"></i>${MKT_META[m].label} ${fmtBig(sums[m])}（${(sums[m]/tot*100).toFixed(1)}%）</span>`).join("")
     :`<span style="color:var(--ink3)">尚無持股資料</span>`;
   const sorted=[...holdings].sort((a,b)=>hVal(b)-hVal(a));
   sorted.forEach(h=>{
     const v=hVal(h),p=tot>0?v/tot*100:0;
     const q=quotes[hKey(h)],pl=hPL(h);
     const nm=h.name?h.name+" · ":"";
-    const costTag=h.mkt==="US"&&h.costCur==="TWD"?"NT":"";
+    const costTag=usdMkt(h.mkt)&&h.costCur==="TWD"?"NT":"";
+    const meta=MKT_META[h.mkt]||MKT_META.TW;
+    const qty=h.mkt==="CR"?num(h.shares):fmtNum(h.shares);
     let sub;
     if(h.shares==null)sub=nm+"手動輸入市值";
-    else if(q)sub=`${nm}${fmtNum(h.shares)}股 @${costTag}${num(h.cost)} · 價 ${num(q.price)}`;
-    else sub=`${nm}${fmtNum(h.shares)}股 @${costTag}${num(h.cost)} · 待更新報價`;
+    else if(q)sub=`${nm}${qty}${meta.unit} @${costTag}${num(h.cost)} · 價 ${num(q.price)}${h.mkt==="CR"?" USDT":""}`;
+    else sub=`${nm}${qty}${meta.unit} @${costTag}${num(h.cost)} · 待更新報價`;
     const row=document.createElement("div");row.className="hrow";
-    row.innerHTML=`<div class="tk">${esc(h.ticker)}<span class="mkt-tag mkt-${h.mkt}">${h.mkt==="TW"?"台股":"美股"}</span></div>
+    row.innerHTML=`<div class="tk">${esc(h.ticker)}<span class="mkt-tag mkt-${h.mkt}">${meta.label}</span></div>
       <div style="flex:1;min-width:0">
-        <div class="bar"><i style="width:${p}%;background:${h.mkt==="TW"?"#5B8BAB":"#D97757"}"></i></div>
+        <div class="bar"><i style="width:${p}%;background:${meta.color}"></i></div>
         <div class="hsub">${sub}</div>
       </div>
       <div style="text-align:right;min-width:92px">
@@ -1128,8 +1163,8 @@ document.getElementById("hd_add").addEventListener("click",()=>{
   const tk=document.getElementById("hd_ticker").value.trim().toUpperCase();
   const sh=num(document.getElementById("hd_shares").value);
   const cost=num(document.getElementById("hd_cost").value);
-  if(!tk||sh<=0){toast("請填代號與股數");return;}
-  const costCur=mkt==="US"?document.getElementById("hd_costcur").value:"TWD";
+  if(!tk||sh<=0){toast(mkt==="CR"?"請填代幣代號與數量":"請填代號與股數");return;}
+  const costCur=usdMkt(mkt)?document.getElementById("hd_costcur").value:"TWD";
   const nm=tickerName(mkt,tk);
   const ex=holdings.find(h=>h.ticker===tk&&h.mkt===mkt);
   if(ex){ex.shares=sh;ex.cost=cost;ex.costCur=costCur;if(nm)ex.name=nm;delete ex.value;toast("已更新 "+(nm||tk));}
@@ -1139,17 +1174,23 @@ document.getElementById("hd_add").addEventListener("click",()=>{
   document.getElementById("hd_preview").style.display="none";
   renderHold();
   refreshQuotes(true);
-  if(!nm)loadNames(mkt).then(()=>{const n=tickerName(mkt,tk);if(n){const h=holdings.find(x=>x.ticker===tk&&x.mkt===mkt);if(h){h.name=n;persist();renderHold();}}});
+  if(!nm){
+    const fill=n=>{if(n){const h=holdings.find(x=>x.ticker===tk&&x.mkt===mkt);if(h){h.name=n;persist();renderHold();}}};
+    if(mkt==="CR")cryptoName(tk).then(fill);
+    else loadNames(mkt).then(()=>fill(tickerName(mkt,tk)));
+  }
 });
 document.getElementById("q_refresh").addEventListener("click",()=>refreshQuotes(true));
 document.getElementById("hd_snap").addEventListener("click",()=>{
   if(!holdings.length){toast("尚無持股資料");return;}
   const twSum=Math.round(holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+hVal(h),0));
   const usSum=Math.round(holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+hVal(h),0));
+  const crSum=Math.round(holdings.filter(h=>h.mkt==="CR").reduce((a,h)=>a+hVal(h),0));
   const s=sortedLogs(),last=s[s.length-1];
   const vals={...(last?last.vals:{})};
   if(twSum>0){vals["台股"]=twSum;if(!cats.includes("台股"))cats.push("台股");}
   if(usSum>0){vals["美股"]=usSum;if(!cats.includes("美股"))cats.push("美股");}
+  if(crSum>0){vals["加密貨幣"]=crSum;if(!cats.includes("加密貨幣"))cats.push("加密貨幣");}
   logs.push({date:todayISO(),vals,liabs:last&&last.liabs?{...last.liabs}:{}});
   persist();refreshAll();toast("已建立今日快照 ✓");
 });
