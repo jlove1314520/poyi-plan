@@ -1,4 +1,4 @@
-const CACHE = "poyi-v3.4.3";
+const CACHE = "poyi-v3.5.0";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"];
 
 self.addEventListener("install", e => {

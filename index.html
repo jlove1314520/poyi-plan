@@ -371,7 +371,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
         <button class="btn" id="s_save">儲存設定</button>
         <button class="btn line" id="s_reset">回復預設</button>
       </div>
-      <div class="note">曲線說明：<b style="color:#C05F3C">實際</b>＝你的快照淨資產；<b style="color:#8A8778">達標軌道</b>＝起始資產到「目標年齡」剛好達到「目標金額」的最低路徑（在它之上＝領先）；<b style="color:#5E7A4A">假設預估</b>＝以目前淨資產照設定推算。改目標金額或年齡，所有數字（需年化、軌道、預估）都會即時重算。<br><br>資料只存本機，換裝置前請「下載備份」。</div>
+      <div class="note">曲線說明：<b style="color:#C05F3C">實際</b>＝你的快照淨資產；<b style="color:#8A8778">達標軌道</b>＝起始資產到「目標年齡」剛好達到「目標金額」的最低路徑（在它之上＝領先）；<b style="color:#5E7A4A">假設預估</b>＝以目前淨資產照設定推算。改目標金額或年齡，所有數字（需年化、軌道、預估）都會即時重算。<br><br>資料只存本機，換裝置前請「下載備份」。<br>目前版本：<b id="verLabel">—</b>（會自動偵測並更新到最新版；若異常可開網址 /reset.html 強制更新）</div>
     </div>
   </section>
 </div>
@@ -401,10 +401,13 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <div class="field">
     <label class="f" style="color:var(--bad)">管理負債分類（點分類可刪除）</label>
     <div class="chips" id="liabChips"></div>
-    <div class="askrow" style="margin-top:8px">
-      <input id="newLiabCat" placeholder="新增負債分類：房貸、信貸、卡債...">
-      <button class="btn sm line" id="addLiabCat" style="width:auto">新增</button>
+    <div class="f3" style="margin-top:8px">
+      <input id="newLiabCat" placeholder="名稱：房貸">
+      <input id="newLiabRate" type="number" step="0.01" inputmode="decimal" placeholder="年利率 %">
+      <input id="newLiabMonthly" type="number" inputmode="numeric" placeholder="每月還款">
     </div>
+    <button class="btn sm line" id="addLiabCat" style="margin-top:8px">新增／更新負債項目</button>
+    <div class="note" style="margin-top:6px">利率與月還款為選填；輸入既有名稱可更新其利率／月還款。顧問頁會依此計算每月利息並給還款建議。</div>
   </div>
   <button class="btn" id="e_add">加入紀錄</button>
 </div>
@@ -421,6 +424,23 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 
 <script>
 "use strict";
+// ================= 版本與自動更新 =================
+const APP_VER="3.5.0";
+if(location.protocol.startsWith("http")){
+  (async()=>{try{
+    const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
+    const m=t.match(/poyi-v([\d.]+)/);
+    if(m&&m[1]!==APP_VER){
+      if(!sessionStorage.getItem("bp_healing")){
+        sessionStorage.setItem("bp_healing","1");
+        try{const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister();}catch(e){}
+        try{const ks=await caches.keys();for(const k of ks)await caches.delete(k);}catch(e){}
+        try{await fetch("index.html",{cache:"reload"});}catch(e){}
+        location.reload();
+      }
+    }else{sessionStorage.removeItem("bp_healing");}
+  }catch(e){}})();
+}
 // ================= 狀態 =================
 const DEFAULTS={birth:"1998-01-13",targetAge:40,goal:100000000,start:6000000,startDate:todayISO(),annualReturn:15,monthly:0,dispCur:"TWD"};
 const RATES_DATE="2026-08-16";
@@ -445,6 +465,7 @@ let settings=loadJSON("bp_settings",null); settings=settings?{...DEFAULTS,...set
 let cats=loadJSON("bp_cats",null); if(!Array.isArray(cats)||!cats.length) cats=[...DEFAULT_CATS];
 let logs=loadJSON("bp_logs",null); if(!Array.isArray(logs)) logs=[{date:settings.startDate,vals:{"台股":settings.start},liab:0}];
 let liabCats=loadJSON("bp_liabcats",null); if(!Array.isArray(liabCats)||!liabCats.length)liabCats=["負債"];
+let liabMeta=loadJSON("bp_liabmeta",null); if(!liabMeta||typeof liabMeta!=="object")liabMeta={};
 function migrateLog(e){
   const out={date:e.date};
   if(e&&e.vals){out.vals=e.vals;}
@@ -483,6 +504,7 @@ function persist(){try{
   localStorage.setItem("bp_quotes",JSON.stringify(quotes));
   localStorage.setItem("bp_fx",JSON.stringify(fx));
   localStorage.setItem("bp_liabcats",JSON.stringify(liabCats));
+  localStorage.setItem("bp_liabmeta",JSON.stringify(liabMeta));
 }catch(e){}}
 function num(v){v=parseFloat(v);return isFinite(v)?v:0;}
 function assetTotal(e){let s=0;Object.values(e.vals||{}).forEach(v=>s+=num(v));return s;}
@@ -670,7 +692,9 @@ function renderCatFields(){
   liabCats.forEach(c=>{
     const d=document.createElement("div");d.className="field";
     const ph=last&&last.liabs&&num(last.liabs[c])?fmtNum(num(last.liabs[c])):"0";
-    d.innerHTML=`<label class="f" style="color:var(--bad)">${esc(c)}</label><input type="number" placeholder="${ph}" inputmode="numeric">`;
+    const m=liabMeta[c]||{};
+    const extra=[num(m.rate)>0?`利率 ${m.rate}%`:null,num(m.monthly)>0?`月還 ${fmtNum(m.monthly)}`:null].filter(Boolean).join(" · ");
+    d.innerHTML=`<label class="f" style="color:var(--bad)">${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><input type="number" placeholder="${ph}" inputmode="numeric">`;
     d.querySelector("input").dataset.liabcat=c;
     lwrap.appendChild(d);
   });
@@ -690,7 +714,7 @@ function renderCatFields(){
     const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
     b.addEventListener("click",()=>{
       if(liabCats.length<=1){toast("至少保留一個負債分類");return;}
-      liabCats=liabCats.filter(x=>x!==c);persist();renderCatFields();toast("已刪除負債分類「"+c+"」");
+      liabCats=liabCats.filter(x=>x!==c);delete liabMeta[c];persist();renderCatFields();toast("已刪除負債分類「"+c+"」");
     });
     lchips.appendChild(b);
   });
@@ -705,9 +729,21 @@ document.getElementById("addCat").addEventListener("click",()=>{
 });
 document.getElementById("addLiabCat").addEventListener("click",()=>{
   const inp=document.getElementById("newLiabCat");const name=inp.value.trim();
-  if(!name){toast("請輸入負債分類名稱");return;}
-  if(liabCats.includes(name)||cats.includes(name)){toast("分類已存在");return;}
-  liabCats.push(name);persist();inp.value="";renderCatFields();toast("已新增負債分類「"+name+"」");
+  const rate=num(document.getElementById("newLiabRate").value);
+  const monthly=num(document.getElementById("newLiabMonthly").value);
+  if(!name){toast("請輸入負債項目名稱");return;}
+  if(cats.includes(name)){toast("「"+name+"」已是資產分類，請換名稱");return;}
+  const meta={};
+  if(rate>0)meta.rate=rate;
+  if(monthly>0)meta.monthly=monthly;
+  const exists=liabCats.includes(name);
+  if(!exists)liabCats.push(name);
+  if(Object.keys(meta).length)liabMeta[name]=meta;
+  else if(exists&&!Object.keys(meta).length)delete liabMeta[name];
+  persist();
+  inp.value="";document.getElementById("newLiabRate").value="";document.getElementById("newLiabMonthly").value="";
+  renderCatFields();
+  toast(exists?"已更新「"+name+"」":"已新增負債項目「"+name+"」");
 });
 const openSheet=()=>{document.body.classList.add("sheet-open");document.getElementById("e_date").value=todayISO();renderCatFields();};
 const closeSheet=()=>document.body.classList.remove("sheet-open");
@@ -1076,6 +1112,22 @@ function advisorDiag(){
   if(c.liab>0){
     if(c.liabR>0.5)out.push({lv:"crit",t:"負債比 "+(c.liabR*100).toFixed(0)+"%：偏高",p:`負債 ${fmtBig(c.liab)}。槓桿放大報酬也放大風險，建議優先降低高利率負債。`});
     else out.push({lv:"warn",t:"有負債 "+fmtBig(c.liab),p:`原則：負債利率 > 預期報酬（${settings.annualReturn}%）→ 優先還款；反之低利房貸可不急著提前還。信用卡循環利息一律最優先清償。`});
+    // 依各負債項目的利率/月還款做精算
+    const items=liabCats.map(n=>({n,amt:num((c.e.liabs||{})[n]),m:liabMeta[n]||{}})).filter(x=>x.amt>0);
+    const withRate=items.filter(x=>num(x.m.rate)>0);
+    if(withRate.length){
+      const mInterest=withRate.reduce((a,x)=>a+x.amt*num(x.m.rate)/100/12,0);
+      const hi=withRate.filter(x=>num(x.m.rate)>=num(settings.annualReturn));
+      const detail=withRate.map(x=>`${x.n} ${fmtBig(x.amt)}@${x.m.rate}%`).join("、");
+      const adv=hi.length
+        ?hi.map(x=>x.n+"（"+x.m.rate+"%）").join("、")+" 的利率已 ≥ 你的預期報酬 "+settings.annualReturn+"%，數學上「提前還款」就是最穩的投資，建議優先清償。"
+        :"各項負債利率皆低於預期報酬 "+settings.annualReturn+"%，可維持正常還款，把多餘資金投入報酬更高的部位。";
+      out.push({lv:hi.length?"crit":"warn",
+        t:"每月利息負擔約 "+fmt(Math.round(mInterest)),
+        p:detail+"。"+adv});
+    }
+    const mPay=items.reduce((a,x)=>a+num(x.m.monthly),0);
+    if(mPay>0)out.push({lv:"warn",t:"每月還款總額 "+fmt(mPay),p:`規劃每月投入時記得先扣掉這筆固定支出。若同時設定每月加投 ${fmtNum(settings.monthly)}，實際每月現金流出為 ${fmt(mPay+num(settings.monthly))}。`});
   }
   // 7. 持股集中
   if(c.top&&c.topR>0.6)out.push({lv:"crit",t:`單一持股 ${c.top.ticker} 佔 ${ (c.topR*100).toFixed(0)}%：高度集中`,p:"這是「快速致富也快速歸零」的結構。若這檔跌 40%，你的破億時程會直接延後數年，建議設定單一部位上限。"});
@@ -1172,7 +1224,7 @@ document.getElementById("s_reset").addEventListener("click",()=>{
 
 // ================= 匯出入 =================
 document.getElementById("btnExport").addEventListener("click",()=>{
-  const blob=new Blob([JSON.stringify({settings,cats,liabCats,logs,holdings,rates},null,2)],{type:"application/json"});
+  const blob=new Blob([JSON.stringify({settings,cats,liabCats,liabMeta,logs,holdings,rates},null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="破億計畫_備份_"+todayISO()+".json";a.click();toast("已產生備份檔");
 });
@@ -1185,6 +1237,7 @@ document.getElementById("fileInput").addEventListener("change",e=>{
     if(Array.isArray(d.logs))logs=d.logs.map(migrateLog);
     if(Array.isArray(d.cats)&&d.cats.length)cats=d.cats;
     if(Array.isArray(d.liabCats)&&d.liabCats.length)liabCats=d.liabCats;
+    if(d.liabMeta&&typeof d.liabMeta==="object")liabMeta=d.liabMeta;
     logs.forEach(e=>{
       Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);});
       Object.keys(e.liabs||{}).forEach(k=>{if(!liabCats.includes(k))liabCats.push(k);});
@@ -1216,6 +1269,7 @@ function refreshAll(){
   if(document.getElementById("v-home").classList.contains("active")){renderGrowth();renderAlloc();}
   if(document.getElementById("v-hold").classList.contains("active")){renderHold();}
 }
+document.getElementById("verLabel").textContent="v"+APP_VER;
 fillSettings();
 refreshAll();
 renderGrowth();
