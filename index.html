@@ -121,6 +121,15 @@ input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0}
 .f3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:10px}
 .f2>*,.f3>*{min-width:0}
 .field{margin-bottom:10px;min-width:0}
+/* 分類明細（單筆加入） */
+.fhead{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.itembtn{background:none;border:1px dashed var(--border2);border-radius:8px;color:var(--ink3);
+  font-size:11px;font-weight:700;padding:2px 8px;cursor:pointer;font-family:inherit;flex:none}
+.itembtn:active{transform:scale(.95)}
+.itemrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(88px,120px) 26px;gap:6px;margin-top:6px;align-items:center}
+.itemrow input{padding:9px 10px;font-size:14px;border-radius:10px}
+.itemrow .i-x{background:none;border:0;color:var(--ink3);cursor:pointer;font-size:15px;padding:0;line-height:1}
+input[readonly].sumlock{background:var(--acc-soft);border-color:transparent;font-weight:800;color:var(--acc-d)}
 .rrow.hit{border-color:var(--acc);background:var(--acc-soft)}
 .rrow.hit .rt{color:var(--acc-d)}
 .curbtn.on{background:var(--acc);color:#fff;border-color:transparent}
@@ -396,7 +405,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <div class="sheet" id="sheet">
   <div class="grab"></div>
   <h2>新增資產快照</h2>
-  <div class="note" style="margin-bottom:10px">欄位已自動帶入上一筆數值，改動有變化的即可（清空＝歸零）。💡 借錢時記得兩邊都記：把借到的錢加進資產（如現金），同時在下方負債區填借款金額——這樣淨資產才正確，配置圖也會顯示借貸資金比例。</div>
+  <div class="note" style="margin-bottom:10px">只填有變化的欄位：<b>留空＝沿用上一筆</b>、填 <b>0＝歸零</b>。點「＋ 明細」可一筆一筆加入（多個帳戶的現金、多檔股票…），自動加總並記住明細，下次直接改單筆即可。💡 借錢時記得兩邊都記：借到的錢加進資產（如現金），同時在負債填借款金額，淨資產才正確。</div>
   <div class="f2">
     <div class="field" style="grid-column:1/-1"><label class="f">日期</label><input type="date" id="e_date"></div>
   </div>
@@ -440,7 +449,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.2";
+const APP_VER="3.8.3";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -481,6 +490,11 @@ let cats=loadJSON("bp_cats",null); if(!Array.isArray(cats)||!cats.length) cats=[
 let logs=loadJSON("bp_logs",null); if(!Array.isArray(logs)) logs=[{date:settings.startDate,vals:{"台股":settings.start},liab:0}];
 let liabCats=loadJSON("bp_liabcats",null); if(!Array.isArray(liabCats)||!liabCats.length)liabCats=["負債"];
 let liabMeta=loadJSON("bp_liabmeta",null); if(!liabMeta||typeof liabMeta!=="object")liabMeta={};
+// 分類明細：{a:{分類:[{n:名稱,a:金額}]},l:{...}}，跨快照持久保存（帳本模式）
+let catItems=loadJSON("bp_items",null);
+if(!catItems||typeof catItems!=="object")catItems={a:{},l:{}};
+if(!catItems.a||typeof catItems.a!=="object")catItems.a={};
+if(!catItems.l||typeof catItems.l!=="object")catItems.l={};
 function migrateLog(e){
   const out={date:e.date};
   if(e&&e.vals){out.vals=e.vals;}
@@ -520,6 +534,7 @@ function persist(){try{
   localStorage.setItem("bp_fx",JSON.stringify(fx));
   localStorage.setItem("bp_liabcats",JSON.stringify(liabCats));
   localStorage.setItem("bp_liabmeta",JSON.stringify(liabMeta));
+  localStorage.setItem("bp_items",JSON.stringify(catItems));
 }catch(e){}}
 function num(v){v=parseFloat(v);return isFinite(v)?v:0;}
 function assetTotal(e){let s=0;Object.values(e.vals||{}).forEach(v=>s+=num(v));return s;}
@@ -766,47 +781,85 @@ function renderLog(){
     if(i){logs.splice(i.ix,1);persist();refreshAll();toast("已刪除");}
   }));
 }
+function itemsOf(kind,c){return catItems[kind][c]||[];}
+function itemsSum(list){return list.reduce((s,x)=>s+Math.max(0,num(x.a)),0);}
+// 建立單一分類欄位（含明細列表）。kind: "a"=資產 / "l"=負債
+function buildCatField(kind,c,last,keepMap){
+  const isL=kind==="l";
+  const prev=isL?(last&&last.liabs?num(last.liabs[c]):0):(last?num((last.vals||{})[c]):0);
+  const d=document.createElement("div");d.className="field";
+  const m=isL?(liabMeta[c]||{}):{};
+  const extra=isL?[num(m.rate)>0?`利率 ${m.rate}%`:null,num(m.monthly)>0?`月還 ${fmtNum(m.monthly)}`:null].filter(Boolean).join(" · "):"";
+  d.innerHTML=`<div class="fhead"><label class="f"${isL?' style="color:var(--bad)"':''}>${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><button type="button" class="itembtn">＋ 明細</button></div><input type="number" inputmode="numeric"><div class="ilist"></div>`;
+  const inp=d.querySelector("input");
+  if(isL)inp.dataset.liabcat=c;else inp.dataset.cat=c;
+  const ilist=d.querySelector(".ilist");
+  const list=itemsOf(kind,c);
+  const refreshMain=()=>{
+    const l=itemsOf(kind,c);
+    if(l.length){
+      const sum=itemsSum(l);
+      inp.readOnly=true;inp.classList.add("sumlock");
+      inp.value=sum>0?sum:"";inp.placeholder="明細合計 0";
+    }else{
+      inp.readOnly=false;inp.classList.remove("sumlock");
+      inp.placeholder=prev>0?`上次 ${fmtNum(prev)}（留空沿用）`:"0";
+      if(keepMap&&Object.prototype.hasOwnProperty.call(keepMap,c))inp.value=keepMap[c];
+    }
+  };
+  const renderRows=()=>{
+    ilist.innerHTML="";
+    itemsOf(kind,c).forEach((it,i)=>{
+      const r=document.createElement("div");r.className="itemrow";
+      r.innerHTML=`<input type="text" placeholder="名稱（選填）"><input type="number" inputmode="numeric" placeholder="金額"><button type="button" class="i-x" aria-label="刪除此筆">✕</button>`;
+      const[ni,ai]=r.querySelectorAll("input");
+      ni.value=it.n||"";if(num(it.a)>0||String(it.a)==="0")ai.value=it.a;
+      ni.addEventListener("input",()=>{it.n=ni.value;persist();});
+      ai.addEventListener("input",()=>{it.a=ai.value;refreshMain();persist();});
+      r.querySelector(".i-x").addEventListener("click",()=>{
+        const l=itemsOf(kind,c);l.splice(i,1);
+        if(!l.length)delete catItems[kind][c];
+        persist();renderRows();refreshMain();
+      });
+      ilist.appendChild(r);
+    });
+    if(itemsOf(kind,c).length)d.style.gridColumn="1/-1";else d.style.gridColumn="";
+  };
+  d.querySelector(".itembtn").addEventListener("click",()=>{
+    if(!catItems[kind][c])catItems[kind][c]=[];
+    const l=catItems[kind][c];
+    // 第一筆明細時，若欄位已有輸入值，帶成第一筆避免遺失
+    if(!l.length&&!inp.readOnly&&inp.value.trim()!==""&&num(inp.value)>0)l.push({n:"",a:inp.value});
+    l.push({n:"",a:""});
+    persist();renderRows();refreshMain();
+    const rows=ilist.querySelectorAll(".itemrow");
+    const lastRow=rows[rows.length-1];
+    if(lastRow)lastRow.querySelector("input").focus();
+  });
+  renderRows();refreshMain();
+  return d;
+}
 function renderCatFields(keep){
   const s=sortedLogs(),last=s[s.length-1];
   // keep=true：重建欄位前先保留使用者已輸入的值（新增/刪除分類時不可洗掉輸入）
   const kv={},kl={};
   if(keep){
-    document.querySelectorAll("#catFields input").forEach(i=>{kv[i.dataset.cat]=i.value;});
-    document.querySelectorAll("#liabFields input").forEach(i=>{kl[i.dataset.liabcat]=i.value;});
+    document.querySelectorAll("#catFields > .field > input").forEach(i=>{if(!i.readOnly)kv[i.dataset.cat]=i.value;});
+    document.querySelectorAll("#liabFields > .field > input").forEach(i=>{if(!i.readOnly)kl[i.dataset.liabcat]=i.value;});
   }
-  // 資產分類欄位
+  // 資產分類欄位（不再自動帶入金額；留空＝沿用上一筆，明細模式自動加總）
   const wrap=document.getElementById("catFields");wrap.innerHTML="";
-  cats.forEach(c=>{
-    const d=document.createElement("div");d.className="field";
-    const prev=last?num((last.vals||{})[c]):0;
-    d.innerHTML=`<label class="f">${esc(c)}</label><input type="number" placeholder="0" inputmode="numeric">`;
-    const inp=d.querySelector("input");
-    inp.dataset.cat=c;
-    if(keep&&Object.prototype.hasOwnProperty.call(kv,c))inp.value=kv[c];
-    else if(prev>0)inp.value=prev;
-    wrap.appendChild(d);
-  });
+  cats.forEach(c=>wrap.appendChild(buildCatField("a",c,last,keep?kv:null)));
   // 負債分類欄位
   const lwrap=document.getElementById("liabFields");lwrap.innerHTML="";
-  liabCats.forEach(c=>{
-    const d=document.createElement("div");d.className="field";
-    const prevL=last&&last.liabs?num(last.liabs[c]):0;
-    const m=liabMeta[c]||{};
-    const extra=[num(m.rate)>0?`利率 ${m.rate}%`:null,num(m.monthly)>0?`月還 ${fmtNum(m.monthly)}`:null].filter(Boolean).join(" · ");
-    d.innerHTML=`<label class="f" style="color:var(--bad)">${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><input type="number" placeholder="0" inputmode="numeric">`;
-    const linp=d.querySelector("input");
-    linp.dataset.liabcat=c;
-    if(keep&&Object.prototype.hasOwnProperty.call(kl,c))linp.value=kl[c];
-    else if(prevL>0)linp.value=prevL;
-    lwrap.appendChild(d);
-  });
+  liabCats.forEach(c=>lwrap.appendChild(buildCatField("l",c,last,keep?kl:null)));
   // 資產分類 chips
   const chips=document.getElementById("catChips");chips.innerHTML="";
   cats.forEach(c=>{
     const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
     b.addEventListener("click",()=>{
       if(cats.length<=1){toast("至少保留一個資產分類");return;}
-      cats=cats.filter(x=>x!==c);persist();renderCatFields(true);toast("已刪除分類「"+c+"」");
+      cats=cats.filter(x=>x!==c);delete catItems.a[c];persist();renderCatFields(true);toast("已刪除分類「"+c+"」");
     });
     chips.appendChild(b);
   });
@@ -816,7 +869,7 @@ function renderCatFields(keep){
     const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
     b.addEventListener("click",()=>{
       if(liabCats.length<=1){toast("至少保留一個負債分類");return;}
-      liabCats=liabCats.filter(x=>x!==c);delete liabMeta[c];persist();renderCatFields(true);toast("已刪除負債分類「"+c+"」");
+      liabCats=liabCats.filter(x=>x!==c);delete liabMeta[c];delete catItems.l[c];persist();renderCatFields(true);toast("已刪除負債分類「"+c+"」");
     });
     lchips.appendChild(b);
   });
@@ -855,12 +908,35 @@ const closeSheet=()=>document.body.classList.remove("sheet-open");
 fab.addEventListener("click",openSheet);
 document.getElementById("sheetMask").addEventListener("click",closeSheet);
 document.getElementById("e_add").addEventListener("click",()=>{
+  // 清掉完全空白的明細列（無名稱且無金額）
+  ["a","l"].forEach(k=>{Object.keys(catItems[k]).forEach(c=>{
+    catItems[k][c]=(catItems[k][c]||[]).filter(x=>String(x.n||"").trim()!==""||String(x.a??"").trim()!=="");
+    if(!catItems[k][c].length)delete catItems[k][c];
+  });});
+  const s=sortedLogs(),last=s[s.length-1];
   const vals={},liabs={};
-  document.querySelectorAll("#catFields input").forEach(inp=>{
-    const v=num(inp.value);if(v)vals[inp.dataset.cat]=v;
+  // 取值優先序：有明細→明細加總；有輸入→輸入值（0＝歸零）；留空→沿用上一筆
+  cats.forEach(c=>{
+    let v;
+    const its=itemsOf("a",c);
+    if(its.length)v=itemsSum(its);
+    else{
+      const inp=document.querySelector(`#catFields > .field > input[data-cat="${CSS.escape(c)}"]`);
+      if(inp&&inp.value.trim()!=="")v=num(inp.value);
+      else v=last?num((last.vals||{})[c]):0;
+    }
+    if(v>0)vals[c]=v;
   });
-  document.querySelectorAll("#liabFields input").forEach(inp=>{
-    const v=num(inp.value);if(v)liabs[inp.dataset.liabcat]=v;
+  liabCats.forEach(c=>{
+    let v;
+    const its=itemsOf("l",c);
+    if(its.length)v=itemsSum(its);
+    else{
+      const inp=document.querySelector(`#liabFields > .field > input[data-liabcat="${CSS.escape(c)}"]`);
+      if(inp&&inp.value.trim()!=="")v=num(inp.value);
+      else v=last&&last.liabs?num(last.liabs[c]):0;
+    }
+    if(v>0)liabs[c]=v;
   });
   if(!Object.keys(vals).length&&!Object.keys(liabs).length){toast("至少填一個資產或負債金額");return;}
   logs.push({date:document.getElementById("e_date").value||todayISO(),vals,liabs});
