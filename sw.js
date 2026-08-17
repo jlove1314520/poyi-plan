@@ -1,4 +1,4 @@
-const CACHE = "poyi-v3.5.1";
+const CACHE = "poyi-v3.5.2";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"];
 
 self.addEventListener("install", e => {
@@ -8,6 +8,10 @@ self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(async () => {
+        const cs = await self.clients.matchAll({ type: "window" });
+        cs.forEach(c => { try { c.navigate(c.url); } catch (e) {} });
+      })
   );
 });
 self.addEventListener("fetch", e => {
