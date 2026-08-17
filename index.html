@@ -185,6 +185,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 .chip{border:1px solid var(--border2);background:var(--card);color:var(--ink2);font-size:12px;font-weight:700;
   padding:7px 12px;border-radius:999px;cursor:pointer;font-family:inherit}
 .chip:active{background:var(--acc-soft);border-color:var(--acc)}
+.chip.on{background:var(--acc-soft);border-color:var(--acc);color:var(--acc-d)}
 .askrow{display:flex;gap:8px}
 .askrow input{flex:1}
 .askrow button{width:auto;padding:11px 18px}
@@ -204,7 +205,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <!-- ===== 總覽 ===== -->
   <section class="view active" id="v-home">
     <div class="hero">
-      <div class="label">目前淨資產</div>
+      <div class="label" id="h_label">目前淨資產</div>
       <div class="amount" id="h_amount">NT$ 0</div>
       <div class="asof" id="h_asof">—</div>
       <div class="hero-row">
@@ -232,7 +233,11 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
     </div>
 
     <div class="card mt">
-      <h3>資產成長軌跡</h3>
+      <h3 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">資產成長軌跡
+        <span style="display:flex;gap:6px">
+          <button type="button" class="chip" id="gm_all" style="padding:4px 10px;font-size:11px">目標全程</button>
+          <button type="button" class="chip" id="gm_hist" style="padding:4px 10px;font-size:11px">實際紀錄</button>
+        </span></h3>
       <div class="chartbox"><canvas id="growthChart"></canvas></div>
       <div class="legend" id="growthLegend"></div>
     </div>
@@ -427,7 +432,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.6.0";
+const APP_VER="3.6.1";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -564,8 +569,17 @@ function renderHome(){
   const cur=currentNet(),goal=num(settings.goal);
   const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
   const req=cur>0?Math.pow(goal/cur,1/yrs)-1:0;
-  animateNumber(document.getElementById("h_amount"),dispUSD()?cur/num(fx.rate):cur,curPrefix());
-  document.getElementById("h_asof").textContent="截至 "+currentDate()+"（"+fmtBig(cur)+"）";
+  const sl0=sortedLogs(),le0=sl0[sl0.length-1];
+  const aT0=le0?assetTotal(le0):cur,lb0=le0?liabTotal(le0):0;
+  if(lb0>0){
+    document.getElementById("h_label").textContent="目前總資產";
+    animateNumber(document.getElementById("h_amount"),dispUSD()?aT0/num(fx.rate):aT0,curPrefix());
+    document.getElementById("h_asof").innerHTML=`其中借貸 <span class="down">${fmtBig(lb0)}</span> · 淨資產 <b>${fmtBig(cur)}</b> · ${currentDate()}（進度以淨資產計）`;
+  }else{
+    document.getElementById("h_label").textContent="目前淨資產";
+    animateNumber(document.getElementById("h_amount"),dispUSD()?cur/num(fx.rate):cur,curPrefix());
+    document.getElementById("h_asof").textContent="截至 "+currentDate()+"（"+fmtBig(cur)+"）";
+  }
   document.getElementById("h_goal").textContent=fmtBig(goal);
   document.getElementById("h_gap").textContent=fmtBig(Math.max(0,goal-cur));
   document.getElementById("h_years").textContent=yrs.toFixed(1)+" 年";
@@ -605,39 +619,66 @@ function renderHome(){
 function axisMonths(){
   const s=new Date(settings.startDate),e=targetDate(),arr=[];
   let d=new Date(s.getFullYear(),s.getMonth(),1);
-  while(d<=e){arr.push(new Date(d));d.setMonth(d.getMonth()+3);}
+  while(d<=e){arr.push(new Date(d));d.setMonth(d.getMonth()+1);}
   if(arr[arr.length-1]<e)arr.push(new Date(e));
   return arr;
 }
+let growthMode=(function(){try{return localStorage.getItem("bp_growthmode")||"all";}catch(e){return "all";}})();
 function renderGrowth(){
-  const ax=axisMonths(),labels=ax.map(d=>d.toISOString().slice(0,7));
-  const required=ax.map(d=>Math.round(requiredPathValue(d.toISOString().slice(0,10))));
+  const s=sortedLogs();
+  const uniqueDates=[...new Set(s.map(e=>e.date))];
+  const histOK=uniqueDates.length>=2;
+  const mode=(growthMode==="hist"&&histOK)?"hist":"all";
+  const ga=document.getElementById("gm_all"),gh=document.getElementById("gm_hist");
+  if(ga){ga.classList.toggle("on",mode==="all");gh.classList.toggle("on",mode==="hist");}
+  let labels;
+  if(mode==="hist"){
+    labels=uniqueDates;
+  }else{
+    // 軸起點涵蓋最早紀錄；有紀錄的月份用「實際日期」當座標（同月多筆也能連線）
+    const startISO=(s.length&&s[0].date<settings.startDate)?s[0].date:settings.startDate;
+    const months=[];{
+      const sd=new Date(startISO),e=targetDate();
+      let d=new Date(sd.getFullYear(),sd.getMonth(),1);
+      while(d<=e){months.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()+1);}
+    }
+    const byMonth={};
+    s.forEach(en=>{const m=en.date.slice(0,7);(byMonth[m]=byMonth[m]||[]).push(en.date);});
+    labels=[];
+    months.forEach(m=>{
+      if(byMonth[m]){[...new Set(byMonth[m])].forEach(d=>labels.push(d));}
+      else labels.push(m);
+    });
+  }
+  const isoOf=l=>l.length>7?l:l+"-15";
+  const required=labels.map(l=>Math.round(requiredPathValue(isoOf(l))));
   const cur=currentNet(),cd=currentDate();
-  const expected=ax.map(d=>{const y=yearsBetween(cd,d.toISOString().slice(0,10));return y<0?null:Math.round(fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,y));});
-  const pts=sortedLogs().map(e=>({x:e.date.slice(0,7),y:Math.round(netTotal(e))}));
-  const actual=labels.map(l=>{const m=pts.filter(p=>p.x===l).pop();return m?m.y:null;});
-  const hasLiab=sortedLogs().some(e=>liabTotal(e)>0);
-  const aPts=sortedLogs().map(e=>({x:e.date.slice(0,7),y:Math.round(assetTotal(e))}));
-  const totalA=labels.map(l=>{const m=aPts.filter(p=>p.x===l).pop();return m?m.y:null;});
+  const expected=labels.map(l=>{const y=yearsBetween(cd,isoOf(l));return y<0?null:Math.round(fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,y));});
+  const byDate={};
+  s.forEach(en=>{byDate[en.date]={net:Math.round(netTotal(en)),tot:Math.round(assetTotal(en))};});
+  const actual=labels.map(l=>byDate[l]?byDate[l].net:null);
+  const totalA=labels.map(l=>byDate[l]?byDate[l].tot:null);
+  const hasLiab=s.some(e=>liabTotal(e)>0);
   if(growthChart)growthChart.destroy();
   const ctx=document.getElementById("growthChart").getContext("2d");
   const g=ctx.createLinearGradient(0,0,0,235);
   g.addColorStop(0,"rgba(217,119,87,.22)");g.addColorStop(1,"rgba(217,119,87,0)");
   const ds=[
-    {label:"達標軌道",data:required,borderColor:"#B3B0A6",borderDash:[5,5],borderWidth:1.6,pointRadius:0,tension:.25},
-    {label:"假設預估",data:expected,borderColor:"#7A9464",borderWidth:1.8,pointRadius:0,tension:.25,spanGaps:true},
+    {label:"達標軌道",data:required,borderColor:"#B3B0A6",borderDash:[5,5],borderWidth:1.6,pointRadius:mode==="hist"?2:0,pointBackgroundColor:"#B3B0A6",tension:.25},
   ];
+  if(mode!=="hist")ds.push({label:"假設預估",data:expected,borderColor:"#7A9464",borderWidth:1.8,pointRadius:0,tension:.25,spanGaps:true});
   if(hasLiab)ds.push({label:"總資產",data:totalA,borderColor:"#8A8778",borderWidth:1.8,
     pointRadius:3,pointBackgroundColor:"#8A8778",pointBorderColor:"#FFFFFF",pointBorderWidth:1,tension:.25,spanGaps:true});
-  ds.push({label:"淨資產（實際）",data:actual,borderColor:"#D97757",backgroundColor:g,fill:true,borderWidth:2.5,
+  ds.push({label:"淨資產（實際）",data:actual,borderColor:"#D97757",backgroundColor:g,fill:mode!=="hist",borderWidth:2.5,
     pointRadius:3.5,pointBackgroundColor:"#D97757",pointBorderColor:"#FFFFFF",pointBorderWidth:1.5,tension:.25,spanGaps:true});
   growthChart=new Chart(ctx,{type:"line",data:{labels,datasets:ds},options:chartOpts()});
   const lg=document.getElementById("growthLegend");
   if(lg)lg.innerHTML=`<span><i style="background:#D97757"></i>淨資產（實際）</span>`
     +(hasLiab?`<span><i style="background:#8A8778"></i>總資產</span>`:"")
-    +`<span><i style="background:#B3B0A6"></i>達標軌道</span><span><i style="background:#7A9464"></i>假設預估</span>`;
+    +`<span><i style="background:#B3B0A6"></i>達標軌道</span>`
+    +(mode!=="hist"?`<span><i style="background:#7A9464"></i>假設預估</span>`:"");
 }
-function ageAtYM(ym){return Math.floor(yearsBetween(settings.birth,ym+"-15"));}
+function ageAtYM(l){return Math.floor(yearsBetween(settings.birth,l.length>7?l:l+"-15"));}
 function chartOpts(){
   return {responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
     plugins:{legend:{display:false},tooltip:{
@@ -1325,6 +1366,12 @@ function refreshAll(){
   if(document.getElementById("v-home").classList.contains("active")){renderGrowth();renderAlloc();}
   if(document.getElementById("v-hold").classList.contains("active")){renderHold();}
 }
+document.getElementById("gm_all").addEventListener("click",()=>{growthMode="all";try{localStorage.setItem("bp_growthmode","all");}catch(e){}renderGrowth();});
+document.getElementById("gm_hist").addEventListener("click",()=>{
+  const n=[...new Set(logs.map(e=>e.date))].length;
+  if(n<2){toast("至少需要 2 個不同日期的紀錄");return;}
+  growthMode="hist";try{localStorage.setItem("bp_growthmode","hist");}catch(e){}renderGrowth();
+});
 document.getElementById("verLabel").textContent="v"+APP_VER;
 fillSettings();
 refreshAll();
