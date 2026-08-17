@@ -108,12 +108,15 @@ body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
 .rrow .del{border:0;background:none;color:var(--ink3);cursor:pointer;font-size:15px;padding:4px}
 /* forms */
 label.f{display:block;font-size:11.5px;color:var(--ink2);font-weight:700;margin-bottom:5px}
-input,select{width:100%;padding:11px 12px;border:1px solid var(--border2);border-radius:12px;
-  background:var(--card);color:var(--ink);font-size:15px;font-family:inherit}
+input,select{width:100%;min-width:0;max-width:100%;padding:11px 12px;border:1px solid var(--border2);border-radius:12px;
+  background:var(--card);color:var(--ink);font-size:15px;font-family:inherit;box-sizing:border-box}
 input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
-.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.field{margin-bottom:10px}
+.f2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.f3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:10px}
+.f2>*,.f3>*{min-width:0}
+.field{margin-bottom:10px;min-width:0}
+.rrow.hit{border-color:var(--acc);background:var(--acc-soft)}
+.rrow.hit .rt{color:var(--acc-d)}
 .btn{width:100%;padding:13px;border-radius:14px;border:0;background:var(--acc);color:#fff;
   font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
 .btn:active{transform:scale(.98)}
@@ -218,7 +221,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 
     <div class="grid2">
       <div class="card"><h3>實際年化報酬</h3><div class="kpi" id="h_act">—</div><div class="sub" id="h_act_sub">需至少 2 筆紀錄</div></div>
-      <div class="card"><h3>依假設 40 歲預估</h3><div class="kpi" id="h_proj">—</div><div class="sub" id="h_proj_sub">—</div></div>
+      <div class="card"><h3 id="h_proj_title">依假設預估</h3><div class="kpi" id="h_proj">—</div><div class="sub" id="h_proj_sub">—</div></div>
     </div>
 
     <div class="card mt">
@@ -238,7 +241,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
     </div>
 
     <div class="card mt">
-      <h3>快速模擬：年化 × 每月加投 → 40 歲</h3>
+      <h3 id="simTitle">快速模擬：年化 × 每月加投</h3>
       <div class="field"><label class="f">年化報酬率</label>
         <div class="slider-row"><input type="range" id="m_rate" min="0" max="40" step="0.5" value="15"><span class="slider-val" id="m_rate_v">15%</span></div></div>
       <div class="field"><label class="f">每月加投</label>
@@ -294,6 +297,14 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <section class="view" id="v-rate">
     <div class="section-t">資金停泊 · 利率情報</div>
     <div class="upd"><span>資料整理日：<b id="ratesDate">—</b></span><button class="iconbtn" id="rt_reset" title="還原內建資料" style="width:32px;height:32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 109-9 9.5 9.5 0 00-6.5 2.7L3 8m0-5v5h5"/></svg></button></div>
+    <div class="card mt">
+      <h3>目標利率搜尋</h3>
+      <div class="askrow">
+        <input id="rt_target" type="number" step="0.1" min="0" placeholder="我要年化至少 __ %" inputmode="decimal">
+        <button class="btn sm" id="rt_go">搜尋</button>
+      </div>
+      <div id="rt_result"></div>
+    </div>
     <div id="rateList"></div>
     <div class="card mt">
       <h3>自訂新增</h3>
@@ -331,8 +342,8 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <div class="f2">
         <div class="field"><label class="f">出生日期</label><input type="date" id="s_birth"></div>
         <div class="field"><label class="f">目標年齡</label><input type="number" id="s_targetage"></div>
-        <div class="field"><label class="f">目標金額</label><input type="number" id="s_goal"></div>
-        <div class="field"><label class="f">起始資產</label><input type="number" id="s_start"></div>
+        <div class="field" style="grid-column:1/-1"><label class="f">目標金額（元，可自由調整）</label><input type="number" id="s_goal"></div>
+        <div class="field" style="grid-column:1/-1"><label class="f">起始資產（元）</label><input type="number" id="s_start"></div>
         <div class="field" style="grid-column:1/-1"><label class="f">起始日期</label><input type="date" id="s_startdate"></div>
       </div>
       <div class="field"><label class="f">預期年化報酬率</label>
@@ -343,7 +354,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
         <button class="btn" id="s_save">儲存設定</button>
         <button class="btn line" id="s_reset">回復預設</button>
       </div>
-      <div class="note">曲線說明：<b style="color:#C05F3C">實際</b>＝你的快照淨資產；<b style="color:#8A8778">達標軌道</b>＝起始到 40 歲剛好 1 億的最低路徑（在它之上＝領先）；<b style="color:#5E7A4A">假設預估</b>＝以目前淨資產照設定推算。<br><br>資料只存本機，換裝置前請「下載備份」。</div>
+      <div class="note">曲線說明：<b style="color:#C05F3C">實際</b>＝你的快照淨資產；<b style="color:#8A8778">達標軌道</b>＝起始資產到「目標年齡」剛好達到「目標金額」的最低路徑（在它之上＝領先）；<b style="color:#5E7A4A">假設預估</b>＝以目前淨資產照設定推算。改目標金額或年齡，所有數字（需年化、軌道、預估）都會即時重算。<br><br>資料只存本機，換裝置前請「下載備份」。</div>
     </div>
   </section>
 </div>
@@ -356,13 +367,18 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <h2>新增資產快照</h2>
   <div class="f2">
     <div class="field" style="grid-column:1/-1"><label class="f">日期</label><input type="date" id="e_date"></div>
-    <div class="field"><label class="f">現金／存款</label><input type="number" id="e_cash" placeholder="0" inputmode="numeric"></div>
-    <div class="field"><label class="f">台股</label><input type="number" id="e_tw" placeholder="0" inputmode="numeric"></div>
-    <div class="field"><label class="f">美股／海外</label><input type="number" id="e_us" placeholder="0" inputmode="numeric"></div>
-    <div class="field"><label class="f">加密貨幣</label><input type="number" id="e_crypto" placeholder="0" inputmode="numeric"></div>
-    <div class="field"><label class="f">不動產</label><input type="number" id="e_estate" placeholder="0" inputmode="numeric"></div>
-    <div class="field"><label class="f">其他資產</label><input type="number" id="e_other" placeholder="0" inputmode="numeric"></div>
+  </div>
+  <div class="f2" id="catFields"></div>
+  <div class="f2">
     <div class="field" style="grid-column:1/-1"><label class="f" style="color:var(--bad)">負債（房貸／信貸／卡債等，填正數）</label><input type="number" id="e_liab" placeholder="0" inputmode="numeric"></div>
+  </div>
+  <div class="field">
+    <label class="f">管理分類（點分類可刪除）</label>
+    <div class="chips" id="catChips"></div>
+    <div class="askrow" style="margin-top:8px">
+      <input id="newCat" placeholder="新增分類：黃金、保單、外幣...">
+      <button class="btn sm line" id="addCat" style="width:auto">新增</button>
+    </div>
   </div>
   <button class="btn" id="e_add">加入紀錄</button>
 </div>
@@ -398,10 +414,22 @@ const RATES_SEED=[
  {cat:"美元定存",name:"滙豐銀行 1年（牌告）",rate:2.2,note:"牌告最高"},
  {cat:"美元短債ETF／MMF",name:"SGOV（0–3月美債ETF）",rate:3.75,note:"TTM殖利率 · 無上限 · 有匯率風險"}
 ];
+const DEFAULT_CATS=["現金","台股","美股","加密貨幣","不動產","其他"];
 let settings=loadJSON("bp_settings",null); settings=settings?{...DEFAULTS,...settings}:{...DEFAULTS};
-let logs=loadJSON("bp_logs",null); if(!Array.isArray(logs)) logs=[{date:settings.startDate,cash:0,tw:settings.start,us:0,crypto:0,estate:0,other:0,liab:0}];
+let cats=loadJSON("bp_cats",null); if(!Array.isArray(cats)||!cats.length) cats=[...DEFAULT_CATS];
+let logs=loadJSON("bp_logs",null); if(!Array.isArray(logs)) logs=[{date:settings.startDate,vals:{"台股":settings.start},liab:0}];
+function migrateLog(e){
+  if(e&&e.vals)return {date:e.date,vals:e.vals,liab:num(e.liab)};
+  const map={cash:"現金",tw:"台股",us:"美股",crypto:"加密貨幣",estate:"不動產",other:"其他"};
+  const vals={};
+  Object.entries(map).forEach(([k,n])=>{const v=num(e[k]);if(v)vals[n]=v;});
+  return {date:e.date,vals,liab:num(e.liab)};
+}
+logs=logs.map(migrateLog);
+logs.forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);}));
 let holdings=loadJSON("bp_holdings",[]);
 let rates=loadJSON("bp_rates",null); if(!Array.isArray(rates)) rates=[...RATES_SEED];
+let rtTarget=loadJSON("bp_rt_target",0);
 let growthChart,allocChart;
 
 function todayISO(){return new Date().toISOString().slice(0,10);}
@@ -411,9 +439,12 @@ function persist(){try{
   localStorage.setItem("bp_logs",JSON.stringify(logs));
   localStorage.setItem("bp_holdings",JSON.stringify(holdings));
   localStorage.setItem("bp_rates",JSON.stringify(rates));
+  localStorage.setItem("bp_cats",JSON.stringify(cats));
+  localStorage.setItem("bp_rt_target",JSON.stringify(rtTarget));
 }catch(e){}}
 function num(v){v=parseFloat(v);return isFinite(v)?v:0;}
-function assetTotal(e){return num(e.cash)+num(e.tw)+num(e.us)+num(e.crypto)+num(e.estate)+num(e.other);}
+function assetTotal(e){let s=0;Object.values(e.vals||{}).forEach(v=>s+=num(v));return s;}
+function sumMatch(e,re){let s=0;Object.entries(e.vals||{}).forEach(([k,v])=>{if(re.test(k))s+=num(v);});return s;}
 function netTotal(e){return assetTotal(e)-num(e.liab);}
 function sortedLogs(){return [...logs].sort((a,b)=>a.date<b.date?-1:1);}
 function fmt(v){return Math.round(v).toLocaleString("en-US");}
@@ -466,6 +497,8 @@ function renderHome(){
   document.getElementById("h_req").textContent=cur>0?pct(req):"—";
   const p=Math.max(0,Math.min(1,cur/goal));
   document.getElementById("h_pct").textContent=(p*100).toFixed(1)+"%";
+  document.getElementById("simTitle").textContent=`快速模擬：年化 × 每月加投 → ${settings.targetAge} 歲`;
+  document.getElementById("h_proj_title").textContent=`依假設 ${settings.targetAge} 歲預估`;
   requestAnimationFrame(()=>{document.getElementById("ringFg").style.strokeDashoffset=270.2*(1-p);});
   const reqNow=requiredPathValue(currentDate());
   const proj=fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,yrs);
@@ -526,14 +559,14 @@ function chartOpts(){
 
 // ================= 配置圖 =================
 function renderAlloc(){
-  const s=sortedLogs(),e=s[s.length-1]||{};
-  const cats=[["現金",e.cash],["台股",e.tw],["美股",e.us],["加密",e.crypto],["不動產",e.estate],["其他",e.other]]
-    .map(([k,v])=>[k,num(v)]).filter(([,v])=>v>0);
-  const colors=["#5B8BAB","#D97757","#7A9464","#C9A227","#A8779B","#8A8778"];
+  const s=sortedLogs(),e=s[s.length-1]||{vals:{}};
+  const items=Object.entries(e.vals||{}).map(([k,v])=>[k,num(v)]).filter(([,v])=>v>0)
+    .sort((a,b)=>b[1]-a[1]);
+  const colors=["#5B8BAB","#D97757","#7A9464","#C9A227","#A8779B","#8A8778","#6B7FA3","#B98A5E","#7E9E9B","#9B8AA6"];
   if(allocChart)allocChart.destroy();
   allocChart=new Chart(document.getElementById("allocChart"),{type:"doughnut",
-    data:{labels:cats.map(c=>c[0]),datasets:[{data:cats.map(c=>c[1]),
-      backgroundColor:colors.slice(0,cats.length),borderColor:"#FFFFFF",borderWidth:3,borderRadius:5}]},
+    data:{labels:items.map(c=>c[0]),datasets:[{data:items.map(c=>c[1]),
+      backgroundColor:items.map((_,i)=>colors[i%colors.length]),borderColor:"#FFFFFF",borderWidth:3,borderRadius:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:"62%",
       plugins:{legend:{position:"right",labels:{color:"#5E5B52",font:{size:11.5},boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true}},
       tooltip:{backgroundColor:"rgba(31,30,27,.95)",callbacks:{label:c=>c.label+"："+fmtBig(c.parsed)}}}}});
@@ -565,15 +598,44 @@ function renderLog(){
     if(i){logs.splice(i.ix,1);persist();refreshAll();toast("已刪除");}
   }));
 }
-const openSheet=()=>{document.body.classList.add("sheet-open");document.getElementById("e_date").value=todayISO();};
+function renderCatFields(){
+  const wrap=document.getElementById("catFields");wrap.innerHTML="";
+  const s=sortedLogs(),last=s[s.length-1];
+  cats.forEach(c=>{
+    const d=document.createElement("div");d.className="field";
+    const ph=last&&num((last.vals||{})[c])?fmt(num(last.vals[c])):"0";
+    d.innerHTML=`<label class="f">${esc(c)}</label><input type="number" placeholder="${ph}" inputmode="numeric">`;
+    d.querySelector("input").dataset.cat=c;
+    wrap.appendChild(d);
+  });
+  const chips=document.getElementById("catChips");chips.innerHTML="";
+  cats.forEach(c=>{
+    const b=document.createElement("button");b.className="chip";b.type="button";b.textContent=c+" ✕";
+    b.addEventListener("click",()=>{
+      if(cats.length<=1){toast("至少保留一個分類");return;}
+      cats=cats.filter(x=>x!==c);persist();renderCatFields();toast("已刪除分類「"+c+"」");
+    });
+    chips.appendChild(b);
+  });
+}
+document.getElementById("addCat").addEventListener("click",()=>{
+  const inp=document.getElementById("newCat");const name=inp.value.trim();
+  if(!name){toast("請輸入分類名稱");return;}
+  if(cats.includes(name)){toast("分類已存在");return;}
+  cats.push(name);persist();inp.value="";renderCatFields();toast("已新增分類「"+name+"」");
+});
+const openSheet=()=>{document.body.classList.add("sheet-open");document.getElementById("e_date").value=todayISO();renderCatFields();};
 const closeSheet=()=>document.body.classList.remove("sheet-open");
 fab.addEventListener("click",openSheet);
 document.getElementById("sheetMask").addEventListener("click",closeSheet);
 document.getElementById("e_add").addEventListener("click",()=>{
-  const g=id=>num(document.getElementById(id).value);
-  logs.push({date:document.getElementById("e_date").value||todayISO(),
-    cash:g("e_cash"),tw:g("e_tw"),us:g("e_us"),crypto:g("e_crypto"),estate:g("e_estate"),other:g("e_other"),liab:g("e_liab")});
-  persist();["e_cash","e_tw","e_us","e_crypto","e_estate","e_other","e_liab"].forEach(id=>document.getElementById(id).value="");
+  const vals={};
+  document.querySelectorAll("#catFields input").forEach(inp=>{
+    const v=num(inp.value);if(v)vals[inp.dataset.cat]=v;
+  });
+  if(!Object.keys(vals).length){toast("至少填一個分類的金額");return;}
+  logs.push({date:document.getElementById("e_date").value||todayISO(),vals,liab:num(document.getElementById("e_liab").value)});
+  persist();document.getElementById("e_liab").value="";
   closeSheet();refreshAll();toast("已新增紀錄 ✓");
 });
 
@@ -621,16 +683,44 @@ document.getElementById("hd_snap").addEventListener("click",()=>{
   if(!holdings.length){toast("尚無持股資料");return;}
   const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+num(h.value),0);
   const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+num(h.value),0);
-  const s=sortedLogs(),last=s[s.length-1]||{};
-  logs.push({date:todayISO(),cash:num(last.cash),tw:twSum,us:usSum,
-    crypto:num(last.crypto),estate:num(last.estate),other:num(last.other),liab:num(last.liab)});
+  const s=sortedLogs(),last=s[s.length-1];
+  const vals={...(last?last.vals:{})};
+  if(twSum>0){vals["台股"]=twSum;if(!cats.includes("台股"))cats.push("台股");}
+  if(usSum>0){vals["美股"]=usSum;if(!cats.includes("美股"))cats.push("美股");}
+  logs.push({date:todayISO(),vals,liab:last?num(last.liab):0});
   persist();refreshAll();toast("已建立今日快照 ✓");
 });
 
 // ================= 利率情報 =================
 const CAT_ORDER=["台幣活存（數位帳戶）","台幣定存","美元定存","美元短債ETF／MMF","其他"];
+function rateRow(r,hit){
+  const idx=rates.indexOf(r);
+  return `<div class="rrow${hit?" hit":""}"><div class="nm"><b>${esc(r.name)}</b><span>${esc(r.cat)}${r.note?" · "+esc(r.note):""}</span></div><div class="rt">${num(r.rate)}<small>%</small></div><button class="del" data-i="${idx}">✕</button></div>`;
+}
+function renderRateSearch(){
+  const box=document.getElementById("rt_result");
+  document.getElementById("rt_target").value=rtTarget||"";
+  if(!rtTarget||rtTarget<=0){box.innerHTML="";return;}
+  const sorted=[...rates].sort((a,b)=>num(b.rate)-num(a.rate));
+  const hits=sorted.filter(r=>num(r.rate)>=rtTarget);
+  let html="";
+  if(hits.length){
+    html+=`<div class="note" style="margin-top:10px">✅ 找到 <b>${hits.length}</b> 個年化 ≥ ${rtTarget}% 的方案（注意額度上限與新戶條件）：</div>`;
+    hits.forEach(r=>html+=rateRow(r,true));
+  }else{
+    const closest=sorted.slice(0,3);
+    html+=`<div class="note" style="margin-top:10px">😅 目前看板上沒有年化 ≥ ${rtTarget}% 的方案。<b>最接近的替代方案</b>：</div>`;
+    closest.forEach(r=>html+=rateRow(r,true));
+    html+=`<div class="note">想要更高報酬（${rtTarget}%+）就已超出「無風險停泊」範圍，需承擔市場風險——可到「顧問」頁問我配置建議，或用「模擬」頁試算所需年化。</div>`;
+  }
+  box.innerHTML=html;
+  box.querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
+    rates.splice(+b.dataset.i,1);persist();renderRates();toast("已刪除");
+  }));
+}
 function renderRates(){
   document.getElementById("ratesDate").textContent=RATES_DATE;
+  renderRateSearch();
   const wrap=document.getElementById("rateList");wrap.innerHTML="";
   CAT_ORDER.forEach(cat=>{
     const items=rates.filter(r=>r.cat===cat).sort((a,b)=>num(b.rate)-num(a.rate));
@@ -662,6 +752,14 @@ document.getElementById("rt_add").addEventListener("click",()=>{
 document.getElementById("rt_reset").addEventListener("click",()=>{
   rates=[...RATES_SEED];persist();renderRates();toast("已還原內建資料");
 });
+document.getElementById("rt_go").addEventListener("click",()=>{
+  rtTarget=num(document.getElementById("rt_target").value);
+  persist();renderRates();
+  toast(rtTarget>0?`已搜尋年化 ≥ ${rtTarget}%`:"已清除搜尋條件");
+});
+document.getElementById("rt_target").addEventListener("keydown",e=>{
+  if(e.key==="Enter"){rtTarget=num(e.target.value);persist();renderRates();}
+});
 
 // ================= 模擬 =================
 function simCalc(){
@@ -675,7 +773,7 @@ function simCalc(){
   document.getElementById("m_result").textContent="NT$ "+fmt(fv);
   document.getElementById("m_result_sub").innerHTML=d>=0
     ?`<span class="up">超標 ${fmtBig(d)} ✓</span>`
-    :`<span class="down">距 1 億還差 ${fmtBig(-d)}</span>`;
+    :`<span class="down">距 ${fmtBig(goal)} 還差 ${fmtBig(-d)}</span>`;
 }
 ["m_rate","m_monthly"].forEach(id=>document.getElementById(id).addEventListener("input",simCalc));
 function renderScenTable(){
@@ -707,9 +805,12 @@ function ctx(){
   const top=[...holdings].sort((a,b)=>num(b.value)-num(a.value))[0];
   const bestTWD=[...rates].filter(r=>r.cat==="台幣活存（數位帳戶）").sort((a,b)=>num(b.rate)-num(a.rate))[0];
   const daysSince=s.length?Math.round((new Date()-new Date(s[s.length-1].date))/864e5):999;
+  const cashAmt=sumMatch(e,/現金|存款|活存|定存/);
+  const cryptoAmt=sumMatch(e,/加密|crypto|虛擬|比特|以太/i);
   return {e,s,assets,liab,net,goal,yrs,req,reqNow,proj,act,twSum,usSum,top,bestTWD,daysSince,
-    cashR:assets>0?num(e.cash)/assets:0,cryptoR:assets>0?num(e.crypto)/assets:0,
-    estateR:assets>0?num(e.estate)/assets:0,liabR:assets>0?liab/assets:0,
+    cashAmt,cryptoAmt,
+    cashR:assets>0?cashAmt/assets:0,cryptoR:assets>0?cryptoAmt/assets:0,
+    liabR:assets>0?liab/assets:0,
     stkTot:twSum+usSum,topR:(twSum+usSum)>0&&top?num(top.value)/(twSum+usSum):0};
 }
 function advisorDiag(){
@@ -730,7 +831,7 @@ function advisorDiag(){
     else out.push({lv:"warn",t:"實際年化 "+pct(c.act)+" < 需要的 "+pct(c.req),p:`缺口 ${((c.req-c.act)*100).toFixed(1)} 個百分點。若績效難再提升，就用「每月加投」補：模擬頁拉桿試算看看。`});
   }
   // 4. 現金
-  const cash=num(c.e.cash);
+  const cash=c.cashAmt;
   if(c.cashR>0.3)out.push({lv:"warn",t:"現金比重 "+(c.cashR*100).toFixed(0)+"%：資金效率偏低",p:`現金 ${fmtBig(cash)}。建議保留約 6 個月生活費當緊急預備金，其餘${c.bestTWD?`可先停泊到高利活存（目前看板最高：${c.bestTWD.name} ${c.bestTWD.rate}%，${c.bestTWD.note}）`:"可停泊到高利活存"}，或依策略分批投入。`});
   else if(c.cashR<0.05&&c.assets>0)out.push({lv:"warn",t:"現金比重 "+(c.cashR*100).toFixed(1)+"%：預備金偏薄",p:"滿手部位遇到急用錢或大回檔會被迫砍在低點。建議至少留 3–6 個月生活費在高利活存。"});
   // 5. 加密
@@ -750,7 +851,7 @@ function advisorDiag(){
 }
 const QA=[
  {k:["達標","來得及","進度","40歲","可能"],f:c=>`目前淨資產 ${fmtBig(c.net)}、距 ${settings.targetAge} 歲還有 ${c.yrs.toFixed(1)} 年，需成長 ${(c.goal/c.net).toFixed(1)} 倍（年化約 ${pct(c.req)}）。\n${c.net>=c.reqNow?"你目前領先達標軌道 "+fmtBig(c.net-c.reqNow)+"，繼續保持。":"目前落後軌道 "+fmtBig(c.reqNow-c.net)+"。"}\n依你設定的 ${settings.annualReturn}% 假設，40 歲預估 ${fmtBig(c.proj)}${c.proj>=c.goal?"，可達標 ✓":"，還差 "+fmtBig(c.goal-c.proj)+"，建議提高投入或調整策略"}。`},
- {k:["現金","放哪","停泊","活存","定存","閒錢"],f:c=>{const b=c.bestTWD;return `你目前現金 ${fmtBig(num(c.e.cash))}（佔資產 ${(c.cashR*100).toFixed(0)}%）。\n原則：先留 6 個月生活費當預備金，剩下的錢不要躺活存 0.6%。\n${b?`利率看板目前最高：${b.name} 年化 ${b.rate}%（${b.note}）。`:""}超過額度上限的部分可疊加次高的方案，美元部位可看短債 ETF（如 SGOV），但注意匯率風險。詳見「利率」頁。`}},
+ {k:["現金","放哪","停泊","活存","定存","閒錢"],f:c=>{const b=c.bestTWD;return `你目前現金類資產 ${fmtBig(c.cashAmt)}（佔資產 ${(c.cashR*100).toFixed(0)}%）。\n原則：先留 6 個月生活費當預備金，剩下的錢不要躺活存 0.6%。\n${b?`利率看板目前最高：${b.name} 年化 ${b.rate}%（${b.note}）。`:""}超過額度上限的部分可疊加次高的方案，美元部位可看短債 ETF（如 SGOV），但注意匯率風險。詳見「利率」頁。`}},
  {k:["加碼","保守","風險","怎麼配","調配","配置","建議"],f:c=>{const tips=advisorDiag().filter(d=>d.lv!=="good").slice(0,3);return `根據你的數據，最需要處理的 ${tips.length} 件事：\n`+tips.map((d,i)=>`${i+1}. ${d.t}——${d.p}`).join("\n")||"目前配置沒有明顯風險點，維持紀律即可。"}},
  {k:["集中","單壓","分散","持股"],f:c=>c.top?`你最大持股是 ${c.top.ticker}（${c.top.mkt==="TW"?"台股":"美股"}），佔股票部位 ${(c.topR*100).toFixed(0)}%。\n${c.topR>0.4?"集中度偏高：主動投資可以集中，但要有明確的停損與部位上限（常見 20–30%）。想像它明天 -40%，你的計畫還成立嗎？":"集中度尚可。"}\n台股/美股比：${(c.twSum/(c.stkTot||1)*100).toFixed(0)}% / ${(c.usSum/(c.stkTot||1)*100).toFixed(0)}%。`:"你還沒在「持股」頁記錄個股，先把部位輸入，我才能分析集中度。"},
  {k:["負債","還款","房貸","信貸","卡債"],f:c=>c.liab>0?`你目前負債 ${fmtBig(c.liab)}（負債比 ${(c.liabR*100).toFixed(0)}%）。\n判斷順序：①信用卡循環（15%+）→ 立刻清 ②信貸（3–8%）→ 利率高於你的預期報酬 ${settings.annualReturn}% 就先還 ③房貸（2% 左右）→ 低利長期資金，通常不急著提前還，把錢投入報酬更高的地方。`:"你目前沒有記錄負債。若有房貸/信貸，記得在新增快照時填入「負債」欄，淨資產才準確。"},
@@ -823,7 +924,7 @@ document.getElementById("s_reset").addEventListener("click",()=>{
 
 // ================= 匯出入 =================
 document.getElementById("btnExport").addEventListener("click",()=>{
-  const blob=new Blob([JSON.stringify({settings,logs,holdings,rates},null,2)],{type:"application/json"});
+  const blob=new Blob([JSON.stringify({settings,cats,logs,holdings,rates},null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="破億計畫_備份_"+todayISO()+".json";a.click();toast("已產生備份檔");
 });
@@ -833,7 +934,9 @@ document.getElementById("fileInput").addEventListener("change",e=>{
   const r=new FileReader();
   r.onload=()=>{try{const d=JSON.parse(r.result);
     if(d.settings)settings={...DEFAULTS,...d.settings};
-    if(Array.isArray(d.logs))logs=d.logs;
+    if(Array.isArray(d.logs))logs=d.logs.map(migrateLog);
+    if(Array.isArray(d.cats)&&d.cats.length)cats=d.cats;
+    logs.forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);}));
     if(Array.isArray(d.holdings))holdings=d.holdings;
     if(Array.isArray(d.rates))rates=d.rates;
     persist();fillSettings();refreshAll();toast("匯入成功 ✓");
@@ -841,8 +944,10 @@ document.getElementById("fileInput").addEventListener("change",e=>{
   r.readAsText(f);
 });
 document.getElementById("btnCSV").addEventListener("click",()=>{
-  const rows=[["日期","現金","台股","美股","加密","不動產","其他","負債","總資產","淨資產"]];
-  sortedLogs().forEach(e=>rows.push([e.date,num(e.cash),num(e.tw),num(e.us),num(e.crypto),num(e.estate),num(e.other),num(e.liab),assetTotal(e),netTotal(e)]));
+  const allCats=[...cats];
+  sortedLogs().forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!allCats.includes(k))allCats.push(k);}));
+  const rows=[["日期",...allCats,"負債","總資產","淨資產"]];
+  sortedLogs().forEach(e=>rows.push([e.date,...allCats.map(c=>num((e.vals||{})[c])),num(e.liab),assetTotal(e),netTotal(e)]));
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob(["﻿"+rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"}));
   a.download="破億計畫_資產紀錄_"+todayISO()+".csv";a.click();toast("已匯出 CSV");
