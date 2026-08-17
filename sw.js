@@ -20,6 +20,8 @@ self.addEventListener("fetch", e => {
   const isCDN = url.href.startsWith("https://cdnjs.cloudflare.com/");
   // 跨域 API（報價、匯率等）不攔截、不快取，直接走網路
   if (url.origin !== self.location.origin && !isCDN) return;
+  // sw.js 本身永遠走網路（否則版本自檢會永遠讀到舊快取）
+  if (url.pathname.endsWith("/sw.js")) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(hit =>
       hit ||
