@@ -119,6 +119,7 @@ input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .field{margin-bottom:10px;min-width:0}
 .rrow.hit{border-color:var(--acc);background:var(--acc-soft)}
 .rrow.hit .rt{color:var(--acc-d)}
+.curbtn.on{background:var(--acc);color:#fff;border-color:transparent}
 .btn{width:100%;padding:13px;border-radius:14px;border:0;background:var(--acc);color:#fff;
   font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
 .btn:active{transform:scale(.98)}
@@ -278,8 +279,11 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
           <select id="hd_mkt"><option value="TW">台股（上市/上櫃）</option><option value="US">美股</option></select></div>
         <div class="field"><label class="f">代號</label><input id="hd_ticker" placeholder="2330 / NVDA"></div>
         <div class="field"><label class="f">股數</label><input id="hd_shares" type="number" inputmode="decimal" placeholder="1000"></div>
-        <div class="field"><label class="f">每股成本（美股填美元）</label><input id="hd_cost" type="number" inputmode="decimal" placeholder="0" step="0.01"></div>
+        <div class="field"><label class="f">每股成本</label><input id="hd_cost" type="number" inputmode="decimal" placeholder="0" step="0.01"></div>
+        <div class="field" id="hd_curwrap" style="display:none;grid-column:1/-1"><label class="f">成本幣別（美股）</label>
+          <select id="hd_costcur"><option value="USD">美金 USD</option><option value="TWD">台幣 TWD（複委託成本）</option></select></div>
       </div>
+      <div class="note" id="hd_preview" style="display:none;margin-bottom:10px"></div>
       <button class="btn sm" id="hd_add">加入持股</button>
       <div class="upd" style="margin-top:12px">
         <span id="q_status">報價：尚未更新</span>
@@ -346,6 +350,12 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <section class="view" id="v-set">
     <div class="section-t">目標設定</div>
     <div class="card mt">
+      <div class="field"><label class="f">顯示幣別（全 App 金額顯示）</label>
+        <div class="btnrow">
+          <button type="button" class="btn sm line curbtn" data-cur="TWD">台幣 NT$</button>
+          <button type="button" class="btn sm line curbtn" data-cur="USD">美金 US$</button>
+        </div>
+      </div>
       <div class="f2">
         <div class="field"><label class="f">出生日期</label><input type="date" id="s_birth"></div>
         <div class="field"><label class="f">目標年齡</label><input type="number" id="s_targetage"></div>
@@ -403,7 +413,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 狀態 =================
-const DEFAULTS={birth:"1998-01-13",targetAge:40,goal:100000000,start:6000000,startDate:todayISO(),annualReturn:15,monthly:0};
+const DEFAULTS={birth:"1998-01-13",targetAge:40,goal:100000000,start:6000000,startDate:todayISO(),annualReturn:15,monthly:0,dispCur:"TWD"};
 const RATES_DATE="2026-08-16";
 const RATES_SEED=[
  {cat:"台幣活存（數位帳戶）",name:"王道銀行（新戶）",rate:12,note:"10萬內 · 至2026/9/30"},
@@ -458,8 +468,16 @@ function assetTotal(e){let s=0;Object.values(e.vals||{}).forEach(v=>s+=num(v));r
 function sumMatch(e,re){let s=0;Object.entries(e.vals||{}).forEach(([k,v])=>{if(re.test(k))s+=num(v);});return s;}
 function netTotal(e){return assetTotal(e)-num(e.liab);}
 function sortedLogs(){return [...logs].sort((a,b)=>a.date<b.date?-1:1);}
-function fmt(v){return Math.round(v).toLocaleString("en-US");}
-function fmtBig(v){const a=Math.abs(v);if(a>=1e8)return (v/1e8).toFixed(2)+" 億";if(a>=1e4)return (v/1e4).toLocaleString("en-US",{maximumFractionDigits:0})+" 萬";return fmt(v);}
+function dispUSD(){return settings.dispCur==="USD";}
+function curPrefix(){return dispUSD()?"US$ ":"NT$ ";}
+function fmt(v){if(dispUSD())v=v/num(fx.rate);return Math.round(v).toLocaleString("en-US");}
+function fmtNum(v){return Math.round(num(v)).toLocaleString("en-US");}
+function fmtBig(v){
+  if(dispUSD()){const u=v/num(fx.rate),a=Math.abs(u);
+    if(a>=1e6)return "US$"+(u/1e6).toFixed(2)+"M";
+    if(a>=1e3)return "US$"+(u/1e3).toFixed(1)+"K";
+    return "US$"+Math.round(u).toLocaleString("en-US");}
+  const a=Math.abs(v);if(a>=1e8)return (v/1e8).toFixed(2)+" 億";if(a>=1e4)return (v/1e4).toLocaleString("en-US",{maximumFractionDigits:0})+" 萬";return fmt(v);}
 function pct(v){return (v*100).toFixed(1)+"%";}
 function yearsBetween(a,b){return (new Date(b)-new Date(a))/(365.25*864e5);}
 function targetDate(){const b=new Date(settings.birth);return new Date(b.getFullYear()+ +settings.targetAge,b.getMonth(),b.getDate());}
@@ -482,7 +500,7 @@ document.querySelectorAll("nav button").forEach(b=>{
     document.getElementById(b.dataset.v).classList.add("active");
     fab.style.display=b.dataset.v==="v-log"?"flex":"none";
     if(b.dataset.v==="v-home"){renderGrowth();renderAlloc();}
-    if(b.dataset.v==="v-hold"){renderHold();refreshQuotes(false);}
+    if(b.dataset.v==="v-hold"){renderHold();refreshQuotes(false);backfillNames();}
     if(b.dataset.v==="v-rate"){renderRates();}
     if(b.dataset.v==="v-ai"){renderAI();}
     window.scrollTo({top:0});
@@ -493,14 +511,14 @@ document.querySelectorAll("nav button").forEach(b=>{
 function animateNumber(el,to,prefix){
   const from=el._v||0;el._v=to;const t0=performance.now(),D=750;
   function step(t){const p=Math.min(1,(t-t0)/D),e=1-Math.pow(1-p,3);
-    el.textContent=prefix+fmt(from+(to-from)*e);if(p<1)requestAnimationFrame(step);}
+    el.textContent=prefix+fmtNum(from+(to-from)*e);if(p<1)requestAnimationFrame(step);}
   requestAnimationFrame(step);
 }
 function renderHome(){
   const cur=currentNet(),goal=num(settings.goal);
   const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
   const req=cur>0?Math.pow(goal/cur,1/yrs)-1:0;
-  animateNumber(document.getElementById("h_amount"),cur,"NT$ ");
+  animateNumber(document.getElementById("h_amount"),dispUSD()?cur/num(fx.rate):cur,curPrefix());
   document.getElementById("h_asof").textContent="截至 "+currentDate()+"（"+fmtBig(cur)+"）";
   document.getElementById("h_goal").textContent=fmtBig(goal);
   document.getElementById("h_gap").textContent=fmtBig(Math.max(0,goal-cur));
@@ -565,7 +583,8 @@ function chartOpts(){
     scales:{
       x:{grid:{color:"#EFEDE4"},ticks:{color:"#96938B",maxTicksLimit:6,font:{size:10}}},
       y:{grid:{color:"#EFEDE4"},ticks:{color:"#96938B",font:{size:10},
-        callback:v=>v>=1e8?(v/1e8).toFixed(1)+"億":(v/1e4).toFixed(0)+"萬"}}}};
+        callback:v=>{if(dispUSD()){const u=v/num(fx.rate);return u>=1e6?(u/1e6).toFixed(1)+"M":(u/1e3).toFixed(0)+"K";}
+          return v>=1e8?(v/1e8).toFixed(1)+"億":(v/1e4).toFixed(0)+"萬";}}}}};
 }
 
 // ================= 配置圖 =================
@@ -599,7 +618,7 @@ function renderLog(){
     const liab=num(e.liab);
     const div=document.createElement("div");div.className="entry";
     div.innerHTML=`<div class="dot">💰</div>
-      <div class="mid"><b>NT$ ${fmt(tot)}</b><span>${esc(e.date)}${liab>0?` · 負債 ${fmtBig(liab)}`:""}</span></div>
+      <div class="mid"><b>${curPrefix()}${fmt(tot)}</b><span>${esc(e.date)}${liab>0?` · 負債 ${fmtBig(liab)}`:""}</span></div>
       ${chg!=null?`<div class="chg ${chg>=0?'up':'down'}">${chg>=0?'+':''}${fmtBig(chg)}</div>`:""}
       <button class="del" data-d="${esc(e.date)}" data-t="${tot}" aria-label="刪除">✕</button>`;
     list.appendChild(div);
@@ -654,18 +673,86 @@ document.getElementById("e_add").addEventListener("click",()=>{
 // ---- 報價引擎（FinMind 台/美股收盤價 + er-api 匯率，皆免金鑰）----
 function hKey(h){return h.mkt+":"+h.ticker;}
 function hPrice(h){const q=quotes[hKey(h)];return q?num(q.price):null;}
+function hCostNative(h){ // 成本換算成報價幣別（台股→台幣、美股→美元）
+  if(h.mkt==="US"&&h.costCur==="TWD")return num(h.cost)/num(fx.rate);
+  return num(h.cost);
+}
 function hVal(h){ // 市值（台幣）
   if(h.shares==null)return num(h.value); // 舊資料：手動市值
   const p=hPrice(h);
-  const px=p!=null?p:num(h.cost); // 沒報價先用成本估
-  return num(h.shares)*px*(h.mkt==="US"?num(fx.rate):1);
+  if(p!=null)return num(h.shares)*p*(h.mkt==="US"?num(fx.rate):1);
+  // 沒報價 → 用成本估
+  const c=num(h.cost);
+  if(h.mkt==="US")return h.costCur==="TWD"?num(h.shares)*c:num(h.shares)*c*num(fx.rate);
+  return num(h.shares)*c;
 }
-function hPL(h){ // 損益%（原幣）
+function hPL(h){ // 損益%（原幣比較）
   if(h.shares==null)return null;
-  const p=hPrice(h);
-  if(p==null||num(h.cost)<=0)return null;
-  return (p-num(h.cost))/num(h.cost);
+  const p=hPrice(h),c=hCostNative(h);
+  if(p==null||c<=0)return null;
+  return (p-c)/c;
 }
+// ---- 股票名稱庫（FinMind StockInfo，快取 30 天）----
+let names=loadJSON("bp_names",null); if(!names||typeof names!=="object")names={TW:{},US:{},t:0};
+function saveNames(){try{localStorage.setItem("bp_names",JSON.stringify(names));}catch(e){}}
+function tickerName(mkt,tk){return (names[mkt]||{})[tk]||"";}
+let namesLoading={};
+async function loadNames(mkt){
+  if(names[mkt]&&Object.keys(names[mkt]).length>100&&Date.now()-(names.t||0)<30*864e5)return;
+  if(namesLoading[mkt])return namesLoading[mkt];
+  namesLoading[mkt]=(async()=>{
+    try{
+      const ds=mkt==="TW"?"TaiwanStockInfo":"USStockInfo";
+      const d=await jfetch("https://api.finmindtrade.com/api/v4/data?dataset="+ds,25000);
+      const map={};
+      (d.data||[]).forEach(r=>{if(r.stock_id&&r.stock_name)map[String(r.stock_id).toUpperCase()]=r.stock_name;});
+      if(Object.keys(map).length){names[mkt]=map;names.t=Date.now();saveNames();}
+    }catch(e){}
+    finally{delete namesLoading[mkt];}
+  })();
+  return namesLoading[mkt];
+}
+async function backfillNames(){
+  const mkts=[...new Set(holdings.filter(h=>h.shares!=null&&!h.name).map(h=>h.mkt))];
+  if(!mkts.length)return;
+  for(const m of mkts)await loadNames(m);
+  let ch=false;
+  holdings.forEach(h=>{if(!h.name){const n=tickerName(h.mkt,h.ticker);if(n){h.name=n;ch=true;}}});
+  if(ch){persist();renderHold();}
+}
+// ---- 新增表單即時預覽 ----
+let pvTimer=null;
+function schedPreview(){clearTimeout(pvTimer);pvTimer=setTimeout(updatePreview,500);}
+async function updatePreview(){
+  const el=document.getElementById("hd_preview");
+  const mkt=document.getElementById("hd_mkt").value;
+  const tk=document.getElementById("hd_ticker").value.trim().toUpperCase();
+  if(!tk){el.style.display="none";return;}
+  el.style.display="block";el.textContent="查詢中…";
+  await loadNames(mkt);
+  if(mkt==="US"&&!fx.t)await fetchFx();
+  const key=mkt+":"+tk;
+  if(!quotes[key]){try{await fetchQuote({mkt,ticker:tk});persist();}catch(e){}}
+  // 使用者可能已改輸入，重讀
+  const tk2=document.getElementById("hd_ticker").value.trim().toUpperCase();
+  if(tk2!==tk)return;
+  const nm=tickerName(mkt,tk),q=quotes[key];
+  const sh=num(document.getElementById("hd_shares").value);
+  let txt=nm?`✔ ${nm}（${tk}）`:`⚠️ 名稱庫查無「${tk}」，請確認代號（仍可加入）`;
+  if(q){
+    txt+=` · 現價 ${q.price}${mkt==="US"?" USD":""}（${q.date} 收盤）`;
+    if(sh>0){
+      const v=sh*num(q.price)*(mkt==="US"?num(fx.rate):1);
+      txt+=` · ${fmtNum(sh)} 股 ≈ NT$ ${fmtNum(v)}${mkt==="US"?`（US$ ${fmtNum(v/num(fx.rate))}）`:""}`;
+    }
+  }else if(!nm){txt+=" · 抓不到報價";}
+  el.textContent=txt;
+}
+["hd_ticker","hd_shares"].forEach(id=>document.getElementById(id).addEventListener("input",schedPreview));
+document.getElementById("hd_mkt").addEventListener("change",()=>{
+  document.getElementById("hd_curwrap").style.display=document.getElementById("hd_mkt").value==="US"?"block":"none";
+  schedPreview();
+});
 async function jfetch(url,to){
   const c=new AbortController();const id=setTimeout(()=>c.abort(),to||12000);
   try{const r=await fetch(url,{signal:c.signal});return await r.json();}
@@ -725,10 +812,12 @@ function renderHold(){
   sorted.forEach(h=>{
     const v=hVal(h),p=tot>0?v/tot*100:0;
     const q=quotes[hKey(h)],pl=hPL(h);
+    const nm=h.name?h.name+" · ":"";
+    const costTag=h.mkt==="US"&&h.costCur==="TWD"?"NT":"";
     let sub;
-    if(h.shares==null)sub="手動輸入市值";
-    else if(q)sub=`${fmt(num(h.shares))}股 @${num(h.cost)} · 價 ${num(q.price)}`;
-    else sub=`${fmt(num(h.shares))}股 @${num(h.cost)} · 待更新報價`;
+    if(h.shares==null)sub=nm+"手動輸入市值";
+    else if(q)sub=`${nm}${fmtNum(h.shares)}股 @${costTag}${num(h.cost)} · 價 ${num(q.price)}`;
+    else sub=`${nm}${fmtNum(h.shares)}股 @${costTag}${num(h.cost)} · 待更新報價`;
     const row=document.createElement("div");row.className="hrow";
     row.innerHTML=`<div class="tk">${esc(h.ticker)}<span class="mkt-tag mkt-${h.mkt}">${h.mkt==="TW"?"台股":"美股"}</span></div>
       <div style="flex:1;min-width:0">
@@ -755,13 +844,17 @@ document.getElementById("hd_add").addEventListener("click",()=>{
   const sh=num(document.getElementById("hd_shares").value);
   const cost=num(document.getElementById("hd_cost").value);
   if(!tk||sh<=0){toast("請填代號與股數");return;}
+  const costCur=mkt==="US"?document.getElementById("hd_costcur").value:"TWD";
+  const nm=tickerName(mkt,tk);
   const ex=holdings.find(h=>h.ticker===tk&&h.mkt===mkt);
-  if(ex){ex.shares=sh;ex.cost=cost;delete ex.value;toast("已更新 "+tk);}
-  else{holdings.push({mkt,ticker:tk,shares:sh,cost});toast("已加入 "+tk+"，抓取報價中…");}
+  if(ex){ex.shares=sh;ex.cost=cost;ex.costCur=costCur;if(nm)ex.name=nm;delete ex.value;toast("已更新 "+(nm||tk));}
+  else{holdings.push({mkt,ticker:tk,shares:sh,cost,costCur,name:nm});toast("已加入 "+(nm||tk)+"，抓取報價中…");}
   persist();
   ["hd_ticker","hd_shares","hd_cost"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("hd_preview").style.display="none";
   renderHold();
   refreshQuotes(true);
+  if(!nm)loadNames(mkt).then(()=>{const n=tickerName(mkt,tk);if(n){const h=holdings.find(x=>x.ticker===tk&&x.mkt===mkt);if(h){h.name=n;persist();renderHold();}}});
 });
 document.getElementById("q_refresh").addEventListener("click",()=>refreshQuotes(true));
 document.getElementById("hd_snap").addEventListener("click",()=>{
@@ -853,9 +946,9 @@ function simCalc(){
   const r=num(document.getElementById("m_rate").value)/100;
   const m=num(document.getElementById("m_monthly").value);
   document.getElementById("m_rate_v").textContent=(r*100).toFixed(1).replace(/\.0$/,"")+"%";
-  document.getElementById("m_monthly_v").textContent=fmt(m);
+  document.getElementById("m_monthly_v").textContent=fmtNum(m);
   const fv=fvMonthly(cur,m,r,yrs),d=fv-goal;
-  document.getElementById("m_result").textContent="NT$ "+fmt(fv);
+  document.getElementById("m_result").textContent=curPrefix()+fmt(fv);
   document.getElementById("m_result_sub").innerHTML=d>=0
     ?`<span class="up">超標 ${fmtBig(d)} ✓</span>`
     :`<span class="down">距 ${fmtBig(goal)} 還差 ${fmtBig(-d)}</span>`;
@@ -988,10 +1081,22 @@ function fillSettings(){
   S("s_goal").value=settings.goal;S("s_start").value=settings.start;
   S("s_startdate").value=settings.startDate;
   S("s_return").value=settings.annualReturn;S("s_return_v").textContent=settings.annualReturn+"%";
-  S("s_monthly").value=settings.monthly;S("s_monthly_v").textContent=fmt(settings.monthly);
+  S("s_monthly").value=settings.monthly;S("s_monthly_v").textContent=fmtNum(settings.monthly);
+  setCurBtns();
 }
+function setCurBtns(){
+  document.querySelectorAll(".curbtn").forEach(b=>{
+    b.classList.toggle("on",b.dataset.cur===settings.dispCur);
+  });
+}
+document.querySelectorAll(".curbtn").forEach(b=>b.addEventListener("click",async()=>{
+  settings.dispCur=b.dataset.cur;setCurBtns();persist();
+  if(dispUSD()&&(Date.now()-fx.t)>30*60*1000){toast("更新匯率中…");await fetchFx();persist();}
+  refreshAll();
+  toast(dispUSD()?`已切換為美金顯示（USD/TWD ${num(fx.rate).toFixed(2)}）`:"已切換為台幣顯示");
+}));
 document.getElementById("s_return").addEventListener("input",e=>document.getElementById("s_return_v").textContent=e.target.value+"%");
-document.getElementById("s_monthly").addEventListener("input",e=>document.getElementById("s_monthly_v").textContent=fmt(num(e.target.value)));
+document.getElementById("s_monthly").addEventListener("input",e=>document.getElementById("s_monthly_v").textContent=fmtNum(num(e.target.value)));
 document.getElementById("s_save").addEventListener("click",()=>{
   const S=id=>document.getElementById(id);
   settings.birth=S("s_birth").value||DEFAULTS.birth;
