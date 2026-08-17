@@ -94,6 +94,8 @@ body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
 .hrow .val{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
 .hrow .pctv{font-size:11.5px;color:var(--ink3);min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
 .hrow .del{border:0;background:none;color:var(--ink3);cursor:pointer;font-size:15px;padding:4px}
+.hsub{font-size:10.5px;color:var(--ink3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plv{font-size:11px;font-weight:750}
 .mkt-tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;letter-spacing:.05em}
 .mkt-TW{background:#E4EDF5;color:#3D6B8E}.mkt-US{background:var(--acc-soft);color:var(--acc-d)}
 /* rates */
@@ -270,14 +272,19 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
   <section class="view" id="v-hold">
     <div class="section-t">持股明細</div>
     <div class="card mt">
-      <h3>新增持股</h3>
-      <div class="f3">
+      <h3>新增持股（自動抓報價算市值）</h3>
+      <div class="f2">
         <div class="field"><label class="f">市場</label>
-          <select id="hd_mkt"><option value="TW">台股</option><option value="US">美股</option></select></div>
+          <select id="hd_mkt"><option value="TW">台股（上市/上櫃）</option><option value="US">美股</option></select></div>
         <div class="field"><label class="f">代號</label><input id="hd_ticker" placeholder="2330 / NVDA"></div>
-        <div class="field"><label class="f">市值（台幣）</label><input id="hd_value" type="number" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label class="f">股數</label><input id="hd_shares" type="number" inputmode="decimal" placeholder="1000"></div>
+        <div class="field"><label class="f">每股成本（美股填美元）</label><input id="hd_cost" type="number" inputmode="decimal" placeholder="0" step="0.01"></div>
       </div>
       <button class="btn sm" id="hd_add">加入持股</button>
+      <div class="upd" style="margin-top:12px">
+        <span id="q_status">報價：尚未更新</span>
+        <button class="btn sm line" id="q_refresh" style="width:auto;padding:8px 14px">更新報價</button>
+      </div>
     </div>
     <div class="card mt">
       <h3>台股 vs 美股</h3>
@@ -428,6 +435,8 @@ function migrateLog(e){
 logs=logs.map(migrateLog);
 logs.forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);}));
 let holdings=loadJSON("bp_holdings",[]);
+let quotes=loadJSON("bp_quotes",{}); if(typeof quotes!=="object"||!quotes) quotes={};
+let fx=loadJSON("bp_fx",null); if(!fx||!num(fx.rate)) fx={rate:32,t:0};
 let rates=loadJSON("bp_rates",null); if(!Array.isArray(rates)) rates=[...RATES_SEED];
 let rtTarget=loadJSON("bp_rt_target",0);
 let growthChart,allocChart;
@@ -441,6 +450,8 @@ function persist(){try{
   localStorage.setItem("bp_rates",JSON.stringify(rates));
   localStorage.setItem("bp_cats",JSON.stringify(cats));
   localStorage.setItem("bp_rt_target",JSON.stringify(rtTarget));
+  localStorage.setItem("bp_quotes",JSON.stringify(quotes));
+  localStorage.setItem("bp_fx",JSON.stringify(fx));
 }catch(e){}}
 function num(v){v=parseFloat(v);return isFinite(v)?v:0;}
 function assetTotal(e){let s=0;Object.values(e.vals||{}).forEach(v=>s+=num(v));return s;}
@@ -471,7 +482,7 @@ document.querySelectorAll("nav button").forEach(b=>{
     document.getElementById(b.dataset.v).classList.add("active");
     fab.style.display=b.dataset.v==="v-log"?"flex":"none";
     if(b.dataset.v==="v-home"){renderGrowth();renderAlloc();}
-    if(b.dataset.v==="v-hold"){renderHold();}
+    if(b.dataset.v==="v-hold"){renderHold();refreshQuotes(false);}
     if(b.dataset.v==="v-rate"){renderRates();}
     if(b.dataset.v==="v-ai"){renderAI();}
     window.scrollTo({top:0});
@@ -640,11 +651,69 @@ document.getElementById("e_add").addEventListener("click",()=>{
 });
 
 // ================= 持股 =================
+// ---- 報價引擎（FinMind 台/美股收盤價 + er-api 匯率，皆免金鑰）----
+function hKey(h){return h.mkt+":"+h.ticker;}
+function hPrice(h){const q=quotes[hKey(h)];return q?num(q.price):null;}
+function hVal(h){ // 市值（台幣）
+  if(h.shares==null)return num(h.value); // 舊資料：手動市值
+  const p=hPrice(h);
+  const px=p!=null?p:num(h.cost); // 沒報價先用成本估
+  return num(h.shares)*px*(h.mkt==="US"?num(fx.rate):1);
+}
+function hPL(h){ // 損益%（原幣）
+  if(h.shares==null)return null;
+  const p=hPrice(h);
+  if(p==null||num(h.cost)<=0)return null;
+  return (p-num(h.cost))/num(h.cost);
+}
+async function jfetch(url,to){
+  const c=new AbortController();const id=setTimeout(()=>c.abort(),to||12000);
+  try{const r=await fetch(url,{signal:c.signal});return await r.json();}
+  finally{clearTimeout(id);}
+}
+async function fetchQuote(h){
+  const from=new Date(Date.now()-14*864e5).toISOString().slice(0,10);
+  const ds=h.mkt==="TW"?"TaiwanStockPrice":"USStockPrice";
+  const d=await jfetch(`https://api.finmindtrade.com/api/v4/data?dataset=${ds}&data_id=${encodeURIComponent(h.ticker)}&start_date=${from}`);
+  const rows=(d&&d.data)||[];const last=rows[rows.length-1];
+  if(!last)throw new Error("no data");
+  const price=h.mkt==="TW"?num(last.close):num(last.Close);
+  if(price<=0)throw new Error("bad price");
+  quotes[hKey(h)]={price,date:last.date,t:Date.now()};
+}
+async function fetchFx(){
+  try{const d=await jfetch("https://open.er-api.com/v6/latest/USD");
+    if(d&&d.rates&&num(d.rates.TWD))fx={rate:num(d.rates.TWD),t:Date.now()};}catch(e){}
+}
+let refreshing=false;
+async function refreshQuotes(force){
+  if(refreshing)return;
+  const need=holdings.filter(h=>h.shares!=null);
+  if(!need.length){setQStatus();return;}
+  const stale=q=>!q||(Date.now()-q.t)>30*60*1000;
+  const targets=force?need:need.filter(h=>stale(quotes[hKey(h)]));
+  if(!targets.length){setQStatus();return;}
+  refreshing=true;setQStatus("更新中…");
+  if(need.some(h=>h.mkt==="US")&&(force||(Date.now()-fx.t)>30*60*1000))await fetchFx();
+  let ok=0,fail=0;
+  for(const h of targets){try{await fetchQuote(h);ok++;}catch(e){fail++;}}
+  refreshing=false;persist();setQStatus();renderHold();
+  if(fail)toast(`報價更新：${ok} 成功、${fail} 失敗（確認代號是否正確）`);
+  else if(ok)toast("報價已更新 ✓");
+}
+function setQStatus(txt){
+  const el=document.getElementById("q_status");if(!el)return;
+  if(txt){el.innerHTML="報價："+txt;return;}
+  const qs=holdings.filter(h=>h.shares!=null).map(h=>quotes[hKey(h)]).filter(Boolean);
+  if(!qs.length){el.textContent="報價：尚未更新";return;}
+  const d=qs.map(q=>q.date).sort().pop();
+  el.innerHTML=`報價：<b>${d}</b> 收盤${holdings.some(h=>h.mkt==="US")?` · USD/TWD ${num(fx.rate).toFixed(2)}`:""}`;
+}
 function renderHold(){
   const list=document.getElementById("holdList");list.innerHTML="";
   document.getElementById("holdEmpty").style.display=holdings.length?"none":"block";
-  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+num(h.value),0);
-  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+num(h.value),0);
+  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+hVal(h),0);
+  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+hVal(h),0);
   const tot=twSum+usSum;
   const bar=document.getElementById("mktBar");
   bar.innerHTML=tot>0?`<i style="width:${twSum/tot*100}%;background:#5B8BAB"></i><i style="width:${usSum/tot*100}%;background:#D97757"></i>`:"";
@@ -652,14 +721,24 @@ function renderHold(){
     ?`<span><i style="background:#5B8BAB"></i>台股 ${fmtBig(twSum)}（${(twSum/tot*100).toFixed(1)}%）</span>
       <span><i style="background:#D97757"></i>美股 ${fmtBig(usSum)}（${(usSum/tot*100).toFixed(1)}%）</span>`
     :`<span style="color:var(--ink3)">尚無持股資料</span>`;
-  const sorted=[...holdings].sort((a,b)=>num(b.value)-num(a.value));
+  const sorted=[...holdings].sort((a,b)=>hVal(b)-hVal(a));
   sorted.forEach(h=>{
-    const p=tot>0?num(h.value)/tot*100:0;
+    const v=hVal(h),p=tot>0?v/tot*100:0;
+    const q=quotes[hKey(h)],pl=hPL(h);
+    let sub;
+    if(h.shares==null)sub="手動輸入市值";
+    else if(q)sub=`${fmt(num(h.shares))}股 @${num(h.cost)} · 價 ${num(q.price)}`;
+    else sub=`${fmt(num(h.shares))}股 @${num(h.cost)} · 待更新報價`;
     const row=document.createElement("div");row.className="hrow";
     row.innerHTML=`<div class="tk">${esc(h.ticker)}<span class="mkt-tag mkt-${h.mkt}">${h.mkt==="TW"?"台股":"美股"}</span></div>
-      <div class="bar"><i style="width:${p}%;background:${h.mkt==="TW"?"#5B8BAB":"#D97757"}"></i></div>
-      <div class="pctv">${p.toFixed(1)}%</div>
-      <div class="val">${fmt(num(h.value))}</div>
+      <div style="flex:1;min-width:0">
+        <div class="bar"><i style="width:${p}%;background:${h.mkt==="TW"?"#5B8BAB":"#D97757"}"></i></div>
+        <div class="hsub">${sub}</div>
+      </div>
+      <div style="text-align:right;min-width:92px">
+        <div class="val">${fmt(v)}</div>
+        ${pl!=null?`<div class="plv ${pl>=0?'up':'down'}">${pl>=0?'+':''}${(pl*100).toFixed(1)}%</div>`:""}
+      </div>
       <button class="del" data-k="${esc(h.ticker)}|${h.mkt}">✕</button>`;
     list.appendChild(row);
   });
@@ -668,21 +747,27 @@ function renderHold(){
     const i=holdings.findIndex(h=>h.ticker===tk&&h.mkt===mk);
     if(i>-1){holdings.splice(i,1);persist();renderHold();toast("已刪除");}
   }));
+  setQStatus();
 }
 document.getElementById("hd_add").addEventListener("click",()=>{
   const mkt=document.getElementById("hd_mkt").value;
   const tk=document.getElementById("hd_ticker").value.trim().toUpperCase();
-  const v=num(document.getElementById("hd_value").value);
-  if(!tk||v<=0){toast("請填代號與市值");return;}
+  const sh=num(document.getElementById("hd_shares").value);
+  const cost=num(document.getElementById("hd_cost").value);
+  if(!tk||sh<=0){toast("請填代號與股數");return;}
   const ex=holdings.find(h=>h.ticker===tk&&h.mkt===mkt);
-  if(ex){ex.value=v;toast("已更新 "+tk);}else{holdings.push({mkt,ticker:tk,value:v});toast("已加入 "+tk);}
-  persist();document.getElementById("hd_ticker").value="";document.getElementById("hd_value").value="";
+  if(ex){ex.shares=sh;ex.cost=cost;delete ex.value;toast("已更新 "+tk);}
+  else{holdings.push({mkt,ticker:tk,shares:sh,cost});toast("已加入 "+tk+"，抓取報價中…");}
+  persist();
+  ["hd_ticker","hd_shares","hd_cost"].forEach(id=>document.getElementById(id).value="");
   renderHold();
+  refreshQuotes(true);
 });
+document.getElementById("q_refresh").addEventListener("click",()=>refreshQuotes(true));
 document.getElementById("hd_snap").addEventListener("click",()=>{
   if(!holdings.length){toast("尚無持股資料");return;}
-  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+num(h.value),0);
-  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+num(h.value),0);
+  const twSum=Math.round(holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+hVal(h),0));
+  const usSum=Math.round(holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+hVal(h),0));
   const s=sortedLogs(),last=s[s.length-1];
   const vals={...(last?last.vals:{})};
   if(twSum>0){vals["台股"]=twSum;if(!cats.includes("台股"))cats.push("台股");}
@@ -800,9 +885,9 @@ function ctx(){
   let act=null;
   if(s.length>=2){const y=yearsBetween(s[0].date,s[s.length-1].date),v0=netTotal(s[0]);
     if(y>.05&&v0>0)act=Math.pow(netTotal(s[s.length-1])/v0,1/y)-1;}
-  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+num(h.value),0);
-  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+num(h.value),0);
-  const top=[...holdings].sort((a,b)=>num(b.value)-num(a.value))[0];
+  const twSum=holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+hVal(h),0);
+  const usSum=holdings.filter(h=>h.mkt==="US").reduce((a,h)=>a+hVal(h),0);
+  const top=[...holdings].sort((a,b)=>hVal(b)-hVal(a))[0];
   const bestTWD=[...rates].filter(r=>r.cat==="台幣活存（數位帳戶）").sort((a,b)=>num(b.rate)-num(a.rate))[0];
   const daysSince=s.length?Math.round((new Date()-new Date(s[s.length-1].date))/864e5):999;
   const cashAmt=sumMatch(e,/現金|存款|活存|定存/);
@@ -811,7 +896,7 @@ function ctx(){
     cashAmt,cryptoAmt,
     cashR:assets>0?cashAmt/assets:0,cryptoR:assets>0?cryptoAmt/assets:0,
     liabR:assets>0?liab/assets:0,
-    stkTot:twSum+usSum,topR:(twSum+usSum)>0&&top?num(top.value)/(twSum+usSum):0};
+    stkTot:twSum+usSum,topR:(twSum+usSum)>0&&top?hVal(top)/(twSum+usSum):0};
 }
 function advisorDiag(){
   const c=ctx(),out=[];
