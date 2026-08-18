@@ -263,7 +263,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
     <div class="card mt">
       <h3 id="simTitle">快速模擬：年化 × 每月加投</h3>
       <div class="field"><label class="f">年化報酬率</label>
-        <div class="slider-row"><input type="range" id="m_rate" min="0" max="40" step="0.5" value="15"><span class="slider-val" id="m_rate_v">15%</span></div></div>
+        <div class="slider-row"><input type="range" id="m_rate" min="0" max="40" step="0.1" value="15"><span class="slider-val" id="m_rate_v">15%</span></div></div>
       <div class="field"><label class="f">每月加投</label>
         <div class="slider-row"><input type="range" id="m_monthly" min="0" max="500000" step="5000" value="0"><span class="slider-val" id="m_monthly_v">0</span></div></div>
       <div class="simbox">
@@ -388,7 +388,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
         <div class="field" style="grid-column:1/-1"><label class="f">起始日期</label><input type="date" id="s_startdate"></div>
       </div>
       <div class="field"><label class="f">預期年化報酬率</label>
-        <div class="slider-row"><input type="range" id="s_return" min="0" max="40" step="0.5"><span class="slider-val" id="s_return_v">15%</span></div></div>
+        <div class="slider-row"><input type="range" id="s_return" min="0" max="40" step="0.1"><span class="slider-val" id="s_return_v">15%</span></div></div>
       <div class="field"><label class="f">每月固定加投</label>
         <div class="slider-row"><input type="range" id="s_monthly" min="0" max="500000" step="5000"><span class="slider-val" id="s_monthly_v">0</span></div></div>
       <div class="btnrow">
@@ -450,7 +450,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.9";
+const APP_VER="3.8.10";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
