@@ -406,7 +406,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <div class="sheet" id="sheet">
   <div class="grab"></div>
   <h2>新增資產快照</h2>
-  <div class="note" style="margin-bottom:10px">要<b>多記一筆</b>（例如現金再進 3 萬）→ 點該分類的「<b>＋ 加一筆</b>」：原有餘額會自動帶成第一筆，新的一筆往上<b>累加</b>，系統自動加總並記住每筆。直接在欄位打數字＝覆蓋成最後餘額；<b>留空＝沿用上一筆</b>、填 <b>0＝歸零</b>。💡 借錢時記得兩邊都記：借到的錢加進資產（如現金），同時在負債填借款金額，淨資產才正確。</div>
+  <div class="note" style="margin-bottom:10px">要<b>多記一筆</b>（例如現金再進 3 萬）→ 點該分類的「<b>＋ 加一筆</b>」：原有餘額會自動帶成第一筆，新的一筆往上<b>累加</b>，系統自動加總並記住每筆。直接在欄位打數字＝覆蓋成最後餘額；<b>留空＝沿用上一筆</b>、填 <b>0＝歸零</b>。台股／美股／加密貨幣欄位旁可「<b>⟳ 帶入持股市值</b>」，一鍵同步持股頁的最新市值（圓餅圖即會顯示）。💡 借錢時記得兩邊都記：借到的錢加進資產（如現金），同時在負債填借款金額，淨資產才正確。</div>
   <div class="f2">
     <div class="field" style="grid-column:1/-1"><label class="f">日期</label><input type="date" id="e_date"></div>
   </div>
@@ -450,7 +450,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.6";
+const APP_VER="3.8.7";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -791,7 +791,9 @@ function buildCatField(kind,c,last,keepMap){
   const d=document.createElement("div");d.className="field";
   const m=isL?(liabMeta[c]||{}):{};
   const extra=isL?[num(m.rate)>0?`利率 ${m.rate}%`:null,num(m.monthly)>0?`月還 ${fmtNum(m.monthly)}`:null].filter(Boolean).join(" · "):"";
-  d.innerHTML=`<div class="fhead"><label class="f"${isL?' style="color:var(--bad)"':''}>${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><button type="button" class="itembtn">＋ 加一筆</button></div><input type="number" inputmode="numeric"><div class="ilist"></div>`;
+  const MKT_BY_CAT={"台股":"TW","美股":"US","加密貨幣":"CR"};
+  const hm=!isL&&MKT_BY_CAT[c]&&holdings.some(h=>h.mkt===MKT_BY_CAT[c])?MKT_BY_CAT[c]:null;
+  d.innerHTML=`<div class="fhead"><label class="f"${isL?' style="color:var(--bad)"':''}>${esc(c)}${extra?`<span style="color:var(--ink3);font-weight:600">（${esc(extra)}）</span>`:""}</label><span style="display:flex;gap:6px;flex:none">${hm?`<button type="button" class="itembtn hbtn">⟳ 帶入持股市值</button>`:""}<button type="button" class="itembtn">＋ 加一筆</button></span></div><input type="number" inputmode="numeric"><div class="ilist"></div>`;
   const inp=d.querySelector("input");
   if(isL)inp.dataset.liabcat=c;else inp.dataset.cat=c;
   const ilist=d.querySelector(".ilist");
@@ -826,7 +828,20 @@ function buildCatField(kind,c,last,keepMap){
     });
     if(itemsOf(kind,c).length)d.style.gridColumn="1/-1";else d.style.gridColumn="";
   };
-  d.querySelector(".itembtn").addEventListener("click",()=>{
+  if(hm){
+    d.querySelector(".hbtn").addEventListener("click",()=>{
+      const sum=Math.round(holdings.filter(h=>h.mkt===hm).reduce((a,h)=>a+hVal(h),0));
+      if(sum<=0){toast("目前算不出市值，請先到「持股」頁更新報價");return;}
+      const l=itemsOf(kind,c);
+      if(l.length){ // 有明細 → 更新/插入「持股市值」項目
+        const it=l.find(x=>x.n==="持股市值");
+        if(it)it.a=sum;else l.push({n:"持股市值",a:sum});
+        persist();renderRows();refreshMain();
+      }else{inp.value=sum;}
+      toast(`已帶入${c}市值 ${fmtNum(sum)}（依最新報價）`);
+    });
+  }
+  d.querySelector(".itembtn:not(.hbtn)").addEventListener("click",()=>{
     if(!catItems[kind][c])catItems[kind][c]=[];
     const l=catItems[kind][c];
     // 開始分筆時：欄位已有輸入值→帶成第一筆；否則自動把上次餘額帶成第一筆（分筆累加，不覆蓋）
