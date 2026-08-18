@@ -87,7 +87,7 @@ body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
 .hbar i{display:block;height:100%}
 .hrow{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--border)}
 .hrow:last-child{border-bottom:0}
-.hrow .tk{font-weight:800;font-size:13.5px;min-width:64px}
+.hrow .tk{font-weight:800;font-size:13.5px;min-width:64px;max-width:108px;word-break:break-word;line-height:1.25}
 .hrow .tk span{display:block;font-weight:600;font-size:10.5px;color:var(--ink3)}
 .hrow .bar{flex:1;height:7px;border-radius:4px;background:var(--bg2);overflow:hidden}
 .hrow .bar i{display:block;height:100%;background:var(--acc);border-radius:4px}
@@ -320,9 +320,18 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <div class="legend" id="mktLegend"></div>
     </div>
     <div class="card mt">
-      <h3>個股比例 <span style="font-size:10.5px;color:var(--ink3);font-weight:600">（點持股可編輯股數與成本）</span></h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+        <h3 style="margin:0">個股比例 <span style="font-size:10.5px;color:var(--ink3);font-weight:600">（點持股可編輯）</span></h3>
+        <select id="holdFilter" style="width:auto;flex:none;padding:7px 10px;font-size:13.5px">
+          <option value="all">所有標的</option>
+          <option value="TW">台股</option>
+          <option value="US">美股</option>
+          <option value="CR">加密</option>
+        </select>
+      </div>
       <div id="holdList"></div>
       <div class="empty" id="holdEmpty" style="display:none;padding:18px 0">尚無持股，先在上方新增</div>
+      <div class="empty" id="holdFilterEmpty" style="display:none;padding:18px 0">此分類目前沒有持股</div>
     </div>
     <button class="btn line mt" id="hd_snap">用持股金額建立今日快照</button>
     <div class="note">「建立今日快照」會以台股／美股／加密貨幣持股合計，搭配最近一筆快照的其他欄位，快速生成今天的紀錄。加密幣為 Binance USDT 即時價 × 匯率換算台幣。</div>
@@ -472,7 +481,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.9.1";
+const APP_VER="3.9.2";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -1163,6 +1172,7 @@ function setQStatus(txt){
 }
 const MKT_META={TW:{label:"台股",color:"#5B8BAB",unit:"股"},US:{label:"美股",color:"#D97757",unit:"股"},CR:{label:"加密",color:"#C9A227",unit:"顆"}};
 let holdEditKey=null; // 目前展開編輯的持股
+let holdFilter="all"; // 個股比例分類：all/TW/US/CR
 function renderHold(){
   const list=document.getElementById("holdList");list.innerHTML="";
   document.getElementById("holdEmpty").style.display=holdings.length?"none":"block";
@@ -1174,21 +1184,26 @@ function renderHold(){
     ?["TW","US","CR"].filter(m=>sums[m]>0).map(m=>`<span><i style="background:${MKT_META[m].color}"></i>${MKT_META[m].label} ${fmtBig(sums[m])}（${(sums[m]/tot*100).toFixed(1)}%）</span>`).join("")
     :`<span style="color:var(--ink3)">尚無持股資料</span>`;
   const sorted=[...holdings].sort((a,b)=>hVal(b)-hVal(a));
-  sorted.forEach(h=>{
+  const shown=sorted.filter(h=>holdFilter==="all"||h.mkt===holdFilter);
+  const fe=document.getElementById("holdFilterEmpty");
+  if(fe)fe.style.display=(holdings.length&&!shown.length)?"block":"none";
+  shown.forEach(h=>{
     const k=hKey(h);
     const v=hVal(h),p=tot>0?v/tot*100:0;
     const q=quotes[k],pl=hPL(h);
-    const nm=h.name?h.name+" · ":"";
     const costTag=usdMkt(h.mkt)&&h.costCur==="TWD"?"NT":"";
     const meta=MKT_META[h.mkt]||MKT_META.TW;
     const qty=h.mkt==="CR"?num(h.shares):fmtNum(h.shares);
+    // 大標題用公司名（有名稱時），代號移到副行
+    const title=h.name||h.ticker;
+    const tkPre=h.name?`${esc(h.ticker)} · `:"";
     let sub;
-    if(h.shares==null)sub=nm+"手動輸入市值";
-    else if(q)sub=`${nm}${qty}${meta.unit} @${costTag}${num(h.cost)} · 價 ${num(q.price)}${h.mkt==="CR"?" USDT":""}`;
-    else sub=`${nm}${qty}${meta.unit} @${costTag}${num(h.cost)} · 待更新報價`;
+    if(h.shares==null)sub=tkPre+"手動輸入市值";
+    else if(q)sub=`${tkPre}${qty}${meta.unit} @${costTag}${num(h.cost)} · 價 ${num(q.price)}${h.mkt==="CR"?" USDT":""}`;
+    else sub=`${tkPre}${qty}${meta.unit} @${costTag}${num(h.cost)} · 待更新報價`;
     const row=document.createElement("div");row.className="hrow";
     row.style.cursor="pointer";
-    row.innerHTML=`<div class="tk">${esc(h.ticker)}<span class="mkt-tag mkt-${h.mkt}">${meta.label}</span></div>
+    row.innerHTML=`<div class="tk">${esc(title)}<span class="mkt-tag mkt-${h.mkt}">${meta.label}</span></div>
       <div style="flex:1;min-width:0">
         <div class="bar"><i style="width:${p}%;background:${meta.color}"></i></div>
         <div class="hsub">${sub}</div>
@@ -1270,6 +1285,7 @@ document.getElementById("hd_add").addEventListener("click",()=>{
   }
 });
 document.getElementById("q_refresh").addEventListener("click",()=>refreshQuotes(true));
+document.getElementById("holdFilter").addEventListener("change",e=>{holdFilter=e.target.value;holdEditKey=null;renderHold();});
 document.getElementById("hd_snap").addEventListener("click",()=>{
   if(!holdings.length){toast("尚無持股資料");return;}
   const twSum=Math.round(holdings.filter(h=>h.mkt==="TW").reduce((a,h)=>a+hVal(h),0));
