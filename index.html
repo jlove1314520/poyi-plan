@@ -265,7 +265,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <div class="field"><label class="f">年化報酬率</label>
         <div class="slider-row"><input type="range" id="m_rate" min="0" max="40" step="0.5" value="15"><span class="slider-val" id="m_rate_v">15%</span></div></div>
       <div class="field"><label class="f">每月加投</label>
-        <div class="slider-row"><input type="range" id="m_monthly" min="0" max="500000" step="10000" value="0"><span class="slider-val" id="m_monthly_v">0</span></div></div>
+        <div class="slider-row"><input type="range" id="m_monthly" min="0" max="500000" step="5000" value="0"><span class="slider-val" id="m_monthly_v">0</span></div></div>
       <div class="simbox">
         <div style="font-size:11.5px;color:var(--ink2);font-weight:700" id="m_age_l">40 歲預估資產</div>
         <div class="result-big" id="m_result">—</div>
@@ -390,7 +390,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <div class="field"><label class="f">預期年化報酬率</label>
         <div class="slider-row"><input type="range" id="s_return" min="0" max="40" step="0.5"><span class="slider-val" id="s_return_v">15%</span></div></div>
       <div class="field"><label class="f">每月固定加投</label>
-        <div class="slider-row"><input type="range" id="s_monthly" min="0" max="500000" step="10000"><span class="slider-val" id="s_monthly_v">0</span></div></div>
+        <div class="slider-row"><input type="range" id="s_monthly" min="0" max="500000" step="5000"><span class="slider-val" id="s_monthly_v">0</span></div></div>
       <div class="btnrow">
         <button class="btn" id="s_save">儲存設定</button>
         <button class="btn line" id="s_reset">回復預設</button>
@@ -450,7 +450,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.8";
+const APP_VER="3.8.9";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
