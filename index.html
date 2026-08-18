@@ -145,7 +145,11 @@ input[readonly].sumlock{background:var(--acc-soft);border-color:transparent;font
 .btn.line{background:transparent;border:1.5px solid var(--border2);color:var(--ink2);font-weight:700}
 .btn.sm{padding:10px;font-size:13.5px;border-radius:12px}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
-.slider-row{display:flex;align-items:center;gap:12px}
+.slider-row{display:flex;align-items:center;gap:8px}
+.stepbtn{flex:none;width:32px;height:32px;border-radius:10px;border:1.5px solid var(--border2);
+  background:var(--card);color:var(--ink2);font-size:17px;font-weight:800;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-family:inherit;padding:0;line-height:1}
+.stepbtn:active{transform:scale(.92);background:var(--acc-soft)}
 .slider-row input[type=range]{flex:1;accent-color:var(--acc);padding:0;border:0}
 .slider-val{min-width:70px;text-align:right;font-weight:800;font-variant-numeric:tabular-nums;font-size:15px}
 table{width:100%;border-collapse:collapse;font-size:13px}
@@ -263,9 +267,9 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
     <div class="card mt">
       <h3 id="simTitle">快速模擬：年化 × 每月加投</h3>
       <div class="field"><label class="f">年化報酬率</label>
-        <div class="slider-row"><input type="range" id="m_rate" min="0" max="40" step="0.1" value="15"><span class="slider-val" id="m_rate_v">15%</span></div></div>
+        <div class="slider-row"><button type="button" class="stepbtn" data-for="m_rate" data-step="-0.1">−</button><input type="range" id="m_rate" min="0" max="40" step="0.1" value="15"><button type="button" class="stepbtn" data-for="m_rate" data-step="0.1">＋</button><span class="slider-val" id="m_rate_v">15%</span></div></div>
       <div class="field"><label class="f">每月加投</label>
-        <div class="slider-row"><input type="range" id="m_monthly" min="0" max="500000" step="5000" value="0"><span class="slider-val" id="m_monthly_v">0</span></div></div>
+        <div class="slider-row"><button type="button" class="stepbtn" data-for="m_monthly" data-step="-5000">−</button><input type="range" id="m_monthly" min="0" max="500000" step="5000" value="0"><button type="button" class="stepbtn" data-for="m_monthly" data-step="5000">＋</button><span class="slider-val" id="m_monthly_v">0</span></div></div>
       <div class="simbox">
         <div style="font-size:11.5px;color:var(--ink2);font-weight:700" id="m_age_l">40 歲預估資產</div>
         <div class="result-big" id="m_result">—</div>
@@ -388,9 +392,9 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
         <div class="field" style="grid-column:1/-1"><label class="f">起始日期</label><input type="date" id="s_startdate"></div>
       </div>
       <div class="field"><label class="f">預期年化報酬率</label>
-        <div class="slider-row"><input type="range" id="s_return" min="0" max="40" step="0.1"><span class="slider-val" id="s_return_v">15%</span></div></div>
+        <div class="slider-row"><button type="button" class="stepbtn" data-for="s_return" data-step="-0.1">−</button><input type="range" id="s_return" min="0" max="40" step="0.1"><button type="button" class="stepbtn" data-for="s_return" data-step="0.1">＋</button><span class="slider-val" id="s_return_v">15%</span></div></div>
       <div class="field"><label class="f">每月固定加投</label>
-        <div class="slider-row"><input type="range" id="s_monthly" min="0" max="500000" step="5000"><span class="slider-val" id="s_monthly_v">0</span></div></div>
+        <div class="slider-row"><button type="button" class="stepbtn" data-for="s_monthly" data-step="-5000">−</button><input type="range" id="s_monthly" min="0" max="500000" step="5000"><button type="button" class="stepbtn" data-for="s_monthly" data-step="5000">＋</button><span class="slider-val" id="s_monthly_v">0</span></div></div>
       <div class="btnrow">
         <button class="btn" id="s_save">儲存設定</button>
         <button class="btn line" id="s_reset">回復預設</button>
@@ -450,7 +454,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.10";
+const APP_VER="3.8.11";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -1576,6 +1580,15 @@ document.querySelectorAll(".curbtn").forEach(b=>b.addEventListener("click",async
   toast(dispUSD()?`已切換為美金顯示（USD/TWD ${num(fx.rate).toFixed(2)}）`:"已切換為台幣顯示");
 }));
 document.getElementById("s_return").addEventListener("input",e=>document.getElementById("s_return_v").textContent=e.target.value+"%");
+// 滑桿 −/＋ 微調鈕（拖曳受像素解析度限制，0.1% 級距需按鈕精調）
+document.querySelectorAll(".stepbtn").forEach(b=>b.addEventListener("click",()=>{
+  const t=document.getElementById(b.dataset.for);if(!t)return;
+  const d=parseFloat(b.dataset.step);
+  let v=(parseFloat(t.value)||0)+d;
+  v=Math.min(parseFloat(t.max),Math.max(parseFloat(t.min),v));
+  t.value=Math.round(v*10)/10; // 消除浮點殘差
+  t.dispatchEvent(new Event("input"));
+}));
 document.getElementById("s_monthly").addEventListener("input",e=>document.getElementById("s_monthly_v").textContent=fmtNum(num(e.target.value)));
 document.getElementById("s_save").addEventListener("click",()=>{
   const S=id=>document.getElementById(id);
@@ -1594,7 +1607,7 @@ document.getElementById("s_reset").addEventListener("click",()=>{
 
 // ================= 匯出入 =================
 document.getElementById("btnExport").addEventListener("click",()=>{
-  const blob=new Blob([JSON.stringify({settings,cats,liabCats,liabMeta,logs,holdings,rates},null,2)],{type:"application/json"});
+  const blob=new Blob([JSON.stringify({settings,cats,liabCats,liabMeta,logs,holdings,rates,items:catItems,rtTarget},null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="破億計畫_備份_"+todayISO()+".json";a.click();toast("已產生備份檔");
 });
@@ -1614,6 +1627,8 @@ document.getElementById("fileInput").addEventListener("change",e=>{
     });
     if(Array.isArray(d.holdings))holdings=d.holdings;
     if(Array.isArray(d.rates))rates=d.rates;
+    if(d.items&&typeof d.items==="object"){catItems={a:d.items.a&&typeof d.items.a==="object"?d.items.a:{},l:d.items.l&&typeof d.items.l==="object"?d.items.l:{}};}
+    if(d.rtTarget!=null&&isFinite(+d.rtTarget))rtTarget=+d.rtTarget;
     persist();fillSettings();refreshAll();toast("匯入成功 ✓");
   }catch(err){toast("匯入失敗：格式不正確");}};
   r.readAsText(f);
