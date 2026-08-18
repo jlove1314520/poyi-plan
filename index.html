@@ -267,12 +267,12 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
       <div class="field"><label class="f">每月加投</label>
         <div class="slider-row"><input type="range" id="m_monthly" min="0" max="500000" step="10000" value="0"><span class="slider-val" id="m_monthly_v">0</span></div></div>
       <div class="simbox">
-        <div style="font-size:11.5px;color:var(--ink2);font-weight:700">40 歲預估資產</div>
+        <div style="font-size:11.5px;color:var(--ink2);font-weight:700" id="m_age_l">40 歲預估資產</div>
         <div class="result-big" id="m_result">—</div>
         <div class="sub" id="m_result_sub">—</div>
       </div>
       <div class="mt">
-        <table><thead><tr><th>年化</th><th>40歲資產</th><th>每月需加投</th></tr></thead><tbody id="scenBody"></tbody></table>
+        <table><thead><tr><th>年化</th><th id="scen_age_th">40歲資產</th><th>每月需加投</th></tr></thead><tbody id="scenBody"></tbody></table>
       </div>
     </div>
   </section>
@@ -450,7 +450,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.7";
+const APP_VER="3.8.8";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -612,6 +612,8 @@ function renderHome(){
   document.getElementById("h_pct").textContent=(p*100).toFixed(1)+"%";
   document.getElementById("simTitle").textContent=`快速模擬：年化 × 每月加投 → ${settings.targetAge} 歲`;
   document.getElementById("h_proj_title").textContent=`依假設 ${settings.targetAge} 歲預估`;
+  document.getElementById("m_age_l").textContent=`${settings.targetAge} 歲預估資產`;
+  document.getElementById("scen_age_th").textContent=`${settings.targetAge}歲資產`;
   requestAnimationFrame(()=>{document.getElementById("ringFg").style.strokeDashoffset=270.2*(1-p);});
   const reqNow=requiredPathValue(currentDate());
   const proj=fvMonthly(cur,num(settings.monthly),num(settings.annualReturn)/100,yrs);
@@ -1506,7 +1508,7 @@ function advisorDiag(){
   return out;
 }
 const QA=[
- {k:["達標","來得及","進度","40歲","可能"],f:c=>`目前淨資產 ${fmtBig(c.net)}、距 ${settings.targetAge} 歲還有 ${c.yrs.toFixed(1)} 年，需成長 ${(c.goal/c.net).toFixed(1)} 倍（年化約 ${pct(c.req)}）。\n${c.net>=c.reqNow?"你目前領先達標軌道 "+fmtBig(c.net-c.reqNow)+"，繼續保持。":"目前落後軌道 "+fmtBig(c.reqNow-c.net)+"。"}\n依你設定的 ${settings.annualReturn}% 假設，40 歲預估 ${fmtBig(c.proj)}${c.proj>=c.goal?"，可達標 ✓":"，還差 "+fmtBig(c.goal-c.proj)+"，建議提高投入或調整策略"}。`},
+ {k:["達標","來得及","進度","40歲","可能"],f:c=>`目前淨資產 ${fmtBig(c.net)}、距 ${settings.targetAge} 歲還有 ${c.yrs.toFixed(1)} 年，需成長 ${(c.goal/c.net).toFixed(1)} 倍（年化約 ${pct(c.req)}）。\n${c.net>=c.reqNow?"你目前領先達標軌道 "+fmtBig(c.net-c.reqNow)+"，繼續保持。":"目前落後軌道 "+fmtBig(c.reqNow-c.net)+"。"}\n依你設定的 ${settings.annualReturn}% 假設，${settings.targetAge} 歲預估 ${fmtBig(c.proj)}${c.proj>=c.goal?"，可達標 ✓":"，還差 "+fmtBig(c.goal-c.proj)+"，建議提高投入或調整策略"}。`},
  {k:["現金","放哪","停泊","活存","定存","閒錢"],f:c=>{const b=c.bestTWD;return `你目前現金類資產 ${fmtBig(c.cashAmt)}（佔資產 ${(c.cashR*100).toFixed(0)}%）。\n原則：先留 6 個月生活費當預備金，剩下的錢不要躺活存 0.6%。\n${b?`利率看板目前最高：${b.name} 年化 ${b.rate}%（${b.note}）。`:""}超過額度上限的部分可疊加次高的方案，美元部位可看短債 ETF（如 SGOV），但注意匯率風險。詳見「利率」頁。`}},
  {k:["加碼","保守","風險","怎麼配","調配","配置","建議"],f:c=>{const tips=advisorDiag().filter(d=>d.lv!=="good").slice(0,3);return `根據你的數據，最需要處理的 ${tips.length} 件事：\n`+tips.map((d,i)=>`${i+1}. ${d.t}——${d.p}`).join("\n")||"目前配置沒有明顯風險點，維持紀律即可。"}},
  {k:["集中","單壓","分散","持股"],f:c=>c.top?`你最大持股是 ${c.top.ticker}（${c.top.mkt==="TW"?"台股":"美股"}），佔股票部位 ${(c.topR*100).toFixed(0)}%。\n${c.topR>0.4?"集中度偏高：主動投資可以集中，但要有明確的停損與部位上限（常見 20–30%）。想像它明天 -40%，你的計畫還成立嗎？":"集中度尚可。"}\n台股/美股比：${(c.twSum/(c.stkTot||1)*100).toFixed(0)}% / ${(c.usSum/(c.stkTot||1)*100).toFixed(0)}%。`:"你還沒在「持股」頁記錄個股，先把部位輸入，我才能分析集中度。"},
