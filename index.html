@@ -399,7 +399,22 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
         <button class="btn" id="s_save">儲存設定</button>
         <button class="btn line" id="s_reset">回復預設</button>
       </div>
-      <div class="note">曲線說明：<b style="color:#C05F3C">實際</b>＝你的快照淨資產；<b style="color:#8A8778">達標軌道</b>＝起始資產到「目標年齡」剛好達到「目標金額」的最低路徑（在它之上＝領先）；<b style="color:#5E7A4A">假設預估</b>＝以目前淨資產照設定推算。改目標金額或年齡，所有數字（需年化、軌道、預估）都會即時重算。<br><br>資料只存本機，換裝置前請「下載備份」。<br>目前版本：<b id="verLabel">—</b>（會自動偵測並更新到最新版；若異常可開網址 /reset.html 強制更新）</div>
+      <div class="note">曲線說明：<b style="color:#C05F3C">實際</b>＝你的快照淨資產；<b style="color:#8A8778">達標軌道</b>＝起始資產到「目標年齡」剛好達到「目標金額」的最低路徑（在它之上＝領先）；<b style="color:#5E7A4A">假設預估</b>＝以目前淨資產照設定推算。改目標金額或年齡，所有數字（需年化、軌道、預估）都會即時重算。<br><br>目前版本：<b id="verLabel">—</b>（會自動偵測並更新到最新版；若異常可開網址 /reset.html 強制更新）</div>
+    </div>
+    <div class="card mt">
+      <h3>☁️ 跨裝置同步（GitHub 私有 repo）</h3>
+      <div class="field"><label class="f">Repo（帳號/倉庫名）</label><input id="sy_repo" placeholder="jlove1314520/poyi-data" autocapitalize="none" autocomplete="off"></div>
+      <div class="field"><label class="f">Fine-grained Token（僅該 repo · Contents 讀寫）</label><input id="sy_token" type="password" placeholder="github_pat_..." autocapitalize="none" autocomplete="off"></div>
+      <div class="btnrow">
+        <button class="btn sm" id="sy_save">儲存並測試連線</button>
+        <button class="btn sm line" id="sy_off">停用同步</button>
+      </div>
+      <div class="btnrow" style="margin-top:8px">
+        <button class="btn sm line" id="sy_push">立即上傳 ↑</button>
+        <button class="btn sm line" id="sy_pull">立即下載 ↓</button>
+      </div>
+      <div class="note" style="margin-top:8px" id="sy_status">未設定</div>
+      <div class="note">設定步驟：GitHub 開一個 <b>Private</b> repo（如 poyi-data）→ Settings → Developer settings → <b>Fine-grained tokens</b> → Repository access 只選該 repo → Permissions 的 <b>Contents 設 Read and write</b> → 產生 token 貼上。兩支手機各設定一次，之後改動自動上傳、開啟 App 自動下載（較新的蓋較舊的）。<br>⚠️ 誠實提醒：啟用後資料會存到你的 GitHub 私有 repo（不再是「只存本機」）；token 只存在這支手機，遺失手機時到 GitHub 撤銷該 token 即可。未啟用同步者，換機仍用「下載備份／匯入備份」。</div>
     </div>
   </section>
 </div>
@@ -454,7 +469,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.8.11";
+const APP_VER="3.9.0";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -524,6 +539,7 @@ let quotes=loadJSON("bp_quotes",{}); if(typeof quotes!=="object"||!quotes) quote
 let fx=loadJSON("bp_fx",null); if(!fx||!num(fx.rate)) fx={rate:32,t:0};
 let rates=loadJSON("bp_rates",null); if(!Array.isArray(rates)) rates=[...RATES_SEED];
 let rtTarget=loadJSON("bp_rt_target",0);
+let sync=loadJSON("bp_sync",null); if(!sync||typeof sync!=="object")sync={token:"",repo:"",auto:true,localT:0,lastHash:"",lastSync:0,lastMsg:""};
 let growthChart,allocChart;
 
 function todayISO(){return new Date().toISOString().slice(0,10);}
@@ -540,7 +556,13 @@ function persist(){try{
   localStorage.setItem("bp_liabcats",JSON.stringify(liabCats));
   localStorage.setItem("bp_liabmeta",JSON.stringify(liabMeta));
   localStorage.setItem("bp_items",JSON.stringify(catItems));
-}catch(e){}}
+}catch(e){}
+  // 同步：資料有實質變更（不含報價/匯率快取）→ 記錄時間戳並排程自動上傳
+  try{
+    const h=strHash(dataPayloadStr());
+    if(h!==sync.lastHash){sync.lastHash=h;sync.localT=Date.now();saveSync();schedPush();}
+  }catch(e){}
+}
 function num(v){v=parseFloat(v);return isFinite(v)?v:0;}
 function assetTotal(e){let s=0;Object.values(e.vals||{}).forEach(v=>s+=num(v));return s;}
 function sumMatch(e,re){let s=0;Object.entries(e.vals||{}).forEach(([k,v])=>{if(re.test(k))s+=num(v);});return s;}
@@ -1566,6 +1588,7 @@ function fillSettings(){
   S("s_startdate").value=settings.startDate;
   S("s_return").value=settings.annualReturn;S("s_return_v").textContent=settings.annualReturn+"%";
   S("s_monthly").value=settings.monthly;S("s_monthly_v").textContent=fmtNum(settings.monthly);
+  if(S("sy_repo")){S("sy_repo").value=sync.repo||"";S("sy_token").value=sync.token||"";setSyncStatus();}
   setCurBtns();
 }
 function setCurBtns(){
@@ -1612,27 +1635,123 @@ document.getElementById("btnExport").addEventListener("click",()=>{
   a.download="破億計畫_備份_"+todayISO()+".json";a.click();toast("已產生備份檔");
 });
 document.getElementById("btnImport").addEventListener("click",()=>document.getElementById("fileInput").click());
+function applyData(d){
+  if(d.settings)settings={...DEFAULTS,...d.settings};
+  if(Array.isArray(d.logs))logs=d.logs.map(migrateLog);
+  if(Array.isArray(d.cats)&&d.cats.length)cats=d.cats;
+  if(Array.isArray(d.liabCats)&&d.liabCats.length)liabCats=d.liabCats;
+  if(d.liabMeta&&typeof d.liabMeta==="object")liabMeta=d.liabMeta;
+  logs.forEach(e=>{
+    Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);});
+    Object.keys(e.liabs||{}).forEach(k=>{if(!liabCats.includes(k))liabCats.push(k);});
+  });
+  if(Array.isArray(d.holdings))holdings=d.holdings;
+  if(Array.isArray(d.rates))rates=d.rates;
+  if(d.items&&typeof d.items==="object"){catItems={a:d.items.a&&typeof d.items.a==="object"?d.items.a:{},l:d.items.l&&typeof d.items.l==="object"?d.items.l:{}};}
+  if(d.rtTarget!=null&&isFinite(+d.rtTarget))rtTarget=+d.rtTarget;
+  persist();
+}
 document.getElementById("fileInput").addEventListener("change",e=>{
   const f=e.target.files[0];if(!f)return;
   const r=new FileReader();
   r.onload=()=>{try{const d=JSON.parse(r.result);
-    if(d.settings)settings={...DEFAULTS,...d.settings};
-    if(Array.isArray(d.logs))logs=d.logs.map(migrateLog);
-    if(Array.isArray(d.cats)&&d.cats.length)cats=d.cats;
-    if(Array.isArray(d.liabCats)&&d.liabCats.length)liabCats=d.liabCats;
-    if(d.liabMeta&&typeof d.liabMeta==="object")liabMeta=d.liabMeta;
-    logs.forEach(e=>{
-      Object.keys(e.vals||{}).forEach(k=>{if(!cats.includes(k))cats.push(k);});
-      Object.keys(e.liabs||{}).forEach(k=>{if(!liabCats.includes(k))liabCats.push(k);});
-    });
-    if(Array.isArray(d.holdings))holdings=d.holdings;
-    if(Array.isArray(d.rates))rates=d.rates;
-    if(d.items&&typeof d.items==="object"){catItems={a:d.items.a&&typeof d.items.a==="object"?d.items.a:{},l:d.items.l&&typeof d.items.l==="object"?d.items.l:{}};}
-    if(d.rtTarget!=null&&isFinite(+d.rtTarget))rtTarget=+d.rtTarget;
-    persist();fillSettings();refreshAll();toast("匯入成功 ✓");
+    applyData(d);fillSettings();refreshAll();toast("匯入成功 ✓");
   }catch(err){toast("匯入失敗：格式不正確");}};
   r.readAsText(f);
+  e.target.value="";
 });
+
+// ================= 跨裝置同步（GitHub 私有 repo · Contents API） =================
+const SYNC_FILE="poyi-data.json";
+function syncConfigured(){return !!(sync.token&&sync.repo);}
+function saveSync(){try{localStorage.setItem("bp_sync",JSON.stringify(sync));}catch(e){}}
+function dataPayloadStr(){return JSON.stringify({settings,cats,liabCats,liabMeta,logs,holdings,rates,items:catItems,rtTarget});}
+function strHash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(36)+"_"+s.length;}
+function b64e(s){return btoa(unescape(encodeURIComponent(s)));}
+function b64d(s){return decodeURIComponent(escape(atob(String(s).replace(/\n/g,""))));}
+function ghFetch(path,opt){
+  return fetch("https://api.github.com/repos/"+sync.repo+"/contents/"+path,{
+    ...(opt||{}),
+    headers:{...(opt&&opt.headers||{}),"Authorization":"Bearer "+sync.token,"Accept":"application/vnd.github+json"}
+  });
+}
+function setSyncStatus(txt){
+  const el=document.getElementById("sy_status");if(!el)return;
+  if(txt){el.textContent="同步狀態："+txt;return;}
+  el.textContent=syncConfigured()
+    ?`同步狀態：${sync.lastMsg||"待同步"}${sync.lastSync?` · ${new Date(sync.lastSync).toLocaleString("zh-TW",{hour12:false})}`:""}`
+    :"未設定（兩支手機各設定一次即可自動同步）";
+}
+let pushTimer=null;
+function schedPush(){if(!syncConfigured()||!sync.auto)return;clearTimeout(pushTimer);pushTimer=setTimeout(()=>pushSync(false),2500);}
+async function pushSync(manual){
+  if(!syncConfigured())return;
+  setSyncStatus("上傳中…");
+  try{
+    let sha=null;
+    const g=await ghFetch(SYNC_FILE);
+    if(g.status===200){const j=await g.json();sha=j.sha;}
+    else if(g.status!==404)throw new Error("讀取失敗 "+g.status);
+    const body={message:"poyi sync "+new Date().toISOString(),content:b64e(JSON.stringify({t:sync.localT||Date.now(),v:APP_VER,data:JSON.parse(dataPayloadStr())}))};
+    if(sha)body.sha=sha;
+    const p=await ghFetch(SYNC_FILE,{method:"PUT",body:JSON.stringify(body)});
+    if(!p.ok)throw new Error("上傳失敗 "+p.status);
+    sync.lastSync=Date.now();sync.lastMsg="已上傳 ✓";saveSync();setSyncStatus();
+    if(manual)toast("已上傳到雲端 ✓");
+  }catch(e){
+    sync.lastMsg="上傳失敗";saveSync();setSyncStatus("⚠️ "+(e.message||"上傳失敗，請檢查網路/token"));
+    if(manual)toast("上傳失敗，請檢查 token 與 repo");
+  }
+}
+async function pullSync(manual){
+  if(!syncConfigured())return;
+  setSyncStatus("同步中…");
+  try{
+    const g=await ghFetch(SYNC_FILE);
+    if(g.status===404){sync.lastMsg="雲端尚無資料";saveSync();setSyncStatus();if(manual)toast("雲端尚無資料，請先按「立即上傳」");return;}
+    if(!g.ok)throw new Error("下載失敗 "+g.status);
+    const j=await g.json();
+    const remote=JSON.parse(b64d(j.content));
+    const rHash=strHash(JSON.stringify(remote.data));
+    if(rHash===sync.lastHash){sync.lastSync=Date.now();sync.lastMsg="已是最新 ✓";saveSync();setSyncStatus();if(manual)toast("已是最新 ✓");return;}
+    if((remote.t||0)>=(sync.localT||0)){
+      sync.lastHash=rHash;sync.localT=remote.t||Date.now();saveSync();
+      applyData(remote.data);
+      sync.lastSync=Date.now();sync.lastMsg="已下載 ✓";saveSync();
+      fillSettings();refreshAll();setSyncStatus();
+      if(manual)toast("已同步雲端資料 ✓");
+    }else{
+      await pushSync(false);
+      if(manual)toast("本機較新，已改為上傳 ✓");
+    }
+  }catch(e){
+    sync.lastMsg="同步失敗";saveSync();setSyncStatus("⚠️ "+(e.message||"同步失敗，請檢查網路/token"));
+    if(manual)toast("同步失敗，請檢查 token 與 repo");
+  }
+}
+document.getElementById("sy_save").addEventListener("click",async()=>{
+  const repo=document.getElementById("sy_repo").value.trim();
+  const token=document.getElementById("sy_token").value.trim();
+  if(!repo||!token){toast("請填 repo 與 token");return;}
+  if(!/^[\w.-]+\/[\w.-]+$/.test(repo)){toast("repo 格式應為 帳號/倉庫名");return;}
+  sync.repo=repo;sync.token=token;sync.auto=true;saveSync();
+  setSyncStatus("測試連線中…");
+  try{
+    const r=await fetch("https://api.github.com/repos/"+repo,{headers:{"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json"}});
+    if(!r.ok)throw new Error(r.status===401?"token 無效或過期":r.status===404?"找不到 repo（名稱錯誤，或 token 沒勾這個 repo）":"連線失敗 "+r.status);
+    const j=await r.json();
+    if(j.private===false){setSyncStatus("⚠️ 這個 repo 是「公開」的，任何人都看得到你的資料！請改用 Private repo");toast("⚠️ repo 是公開的，強烈建議改私有");return;}
+    toast("連線成功 ✓ 開始首次同步…");
+    await pullSync(true);
+  }catch(e){setSyncStatus("⚠️ "+e.message);toast("連線失敗："+e.message);}
+});
+document.getElementById("sy_off").addEventListener("click",()=>{
+  sync.token="";sync.auto=false;saveSync();
+  document.getElementById("sy_token").value="";
+  setSyncStatus();toast("已停用同步，token 已從本機移除");
+});
+document.getElementById("sy_push").addEventListener("click",()=>syncConfigured()?pushSync(true):toast("請先儲存並測試連線"));
+document.getElementById("sy_pull").addEventListener("click",()=>syncConfigured()?pullSync(true):toast("請先儲存並測試連線"));
 document.getElementById("btnCSV").addEventListener("click",()=>{
   const allCats=[...cats];
   sortedLogs().forEach(e=>Object.keys(e.vals||{}).forEach(k=>{if(!allCats.includes(k))allCats.push(k);}));
@@ -1659,6 +1778,8 @@ fillSettings();
 refreshAll();
 renderGrowth();
 renderAlloc();
+// 開啟 App 自動同步（下載較新資料，或把較新的本機資料推上去）
+if(syncConfigured())pullSync(false);
 </script>
 </body>
 </html>
