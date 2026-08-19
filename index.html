@@ -487,7 +487,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.9.5";
+const APP_VER="3.9.6";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -599,8 +599,11 @@ function fmtBig(v){
   const a=Math.abs(v);if(a>=1e8)return (v/1e8).toFixed(2)+" 億";if(a>=1e4)return (v/1e4).toLocaleString("en-US",{maximumFractionDigits:0})+" 萬";return fmt(v);}
 function pct(v){return (v*100).toFixed(1)+"%";}
 function yearsBetween(a,b){return (new Date(b)-new Date(a))/(365.25*864e5);}
-function targetDate(){const b=new Date(settings.birth);return new Date(b.getFullYear()+ +settings.targetAge,b.getMonth(),b.getDate());}
-function targetISO(){return targetDate().toISOString().slice(0,10);}
+function pad2(n){return String(n).padStart(2,"0");}
+function birthParts(){const m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(settings.birth||""));return m?{y:+m[1],mo:+m[2],d:+m[3]}:{y:2000,mo:1,d:1};}
+// 直接用生日年月日組字串，避免 toISOString() 的時區倒退一天
+function targetISO(){const b=birthParts();return (b.y+ +settings.targetAge)+"-"+pad2(b.mo)+"-"+pad2(b.d);}
+function targetDate(){return new Date(targetISO());}
 function fvMonthly(s,m,ann,y){const r=Math.pow(1+ann,1/12)-1,n=Math.round(y*12);let v=s;for(let i=0;i<n;i++)v=v*(1+r)+m;return v;}
 function monthlyNeeded(s,g,ann,y){const r=Math.pow(1+ann,1/12)-1,n=Math.round(y*12);const grown=s*Math.pow(1+r,n);if(Math.abs(r)<1e-9)return (g-s)/n;return (g-grown)/((Math.pow(1+r,n)-1)/r);}
 function currentNet(){const s=sortedLogs();return s.length?netTotal(s[s.length-1]):num(settings.start);}
@@ -746,10 +749,10 @@ function renderGrowth(){
   const anchors=[];
   {
     const t=targetISO();
-    let d=new Date(cd);
-    for(let i=0;i<60;i++){
-      d=new Date(d.getFullYear()+1,d.getMonth(),Math.min(d.getDate(),28));
-      const iso=d.toISOString().slice(0,10);
+    const cm=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(cd))||[0,2026,1,1];
+    const yy=+cm[1],mo=pad2(+cm[2]),dd=pad2(Math.min(+cm[3],28));
+    for(let i=1;i<=60;i++){
+      const iso=(yy+i)+"-"+mo+"-"+dd;
       if(iso>=t){anchors.push(t);break;}
       anchors.push(iso);
     }
@@ -786,7 +789,16 @@ function renderGrowth(){
     +(hasLiab?`<span><i style="background:#8A8778"></i>總資產</span>`:"")
     +`<span><i style="background:#B3B0A6"></i>達標軌道</span><span><i style="background:#7A9464"></i>假設預估</span>`;
 }
-function ageAtYM(l){return Math.floor(yearsBetween(settings.birth,l.length>7?l:l+"-15"));}
+// 以日曆計算年齡（避免 365.25 平均年在生日當天少算一歲）
+function ageAtYM(l){
+  const b=birthParts();
+  const m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(l).length>7?String(l):String(l)+"-15");
+  if(!m)return 0;
+  const y=+m[1],mo=+m[2],d=+m[3];
+  let age=y-b.y;
+  if(mo<b.mo||(mo===b.mo&&d<b.d))age--;
+  return age;
+}
 function chartOpts(){
   return {responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
     plugins:{legend:{display:false},tooltip:{
