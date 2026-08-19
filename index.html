@@ -42,6 +42,12 @@ body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
 .hero{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:22px 20px}
 .hero .label{font-size:12px;color:var(--ink3);font-weight:700;letter-spacing:.08em}
 .hero .amount{font-family:var(--serif);font-size:36px;font-weight:700;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+/* 總資產翻牌式數字滾筒 */
+.odo{display:inline-flex;align-items:baseline;line-height:1}
+.odx{white-space:pre}
+.odc{display:inline-block;height:1em;line-height:1;overflow:hidden;vertical-align:baseline}
+.odcol{display:block;will-change:transform}
+.odd{display:block;height:1em;line-height:1;text-align:center}
 .hero .asof{font-size:12px;color:var(--ink3);margin-top:2px}
 .hero-row{display:flex;align-items:center;gap:20px;margin-top:16px}
 .ring{position:relative;width:100px;height:100px;flex:none}
@@ -481,7 +487,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.9.3";
+const APP_VER="3.9.4";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -612,7 +618,7 @@ document.querySelectorAll("nav button").forEach(b=>{
     b.classList.add("active");
     document.getElementById(b.dataset.v).classList.add("active");
     fab.style.display=b.dataset.v==="v-log"?"flex":"none";
-    if(b.dataset.v==="v-home"){renderGrowth();renderAlloc();}
+    if(b.dataset.v==="v-home"){renderHome();renderGrowth();renderAlloc();}
     if(b.dataset.v==="v-hold"){renderHold();refreshQuotes(false);backfillNames();}
     if(b.dataset.v==="v-rate"){renderRates();}
     if(b.dataset.v==="v-ai"){renderAI();}
@@ -621,12 +627,56 @@ document.querySelectorAll("nav button").forEach(b=>{
 });
 
 // ================= 總覽 =================
-function animateNumber(el,to,prefix){
-  const from=el._v||0;el._v=to;const t0=performance.now(),D=750;
-  function step(t){const p=Math.min(1,(t-t0)/D),e=1-Math.pow(1-p,3);
-    el.textContent=prefix+fmtNum(from+(to-from)*e);if(p<1)requestAnimationFrame(step);}
-  requestAnimationFrame(step);
+// ===== 翻牌式數字滾筒（總資產）=====
+function odoSetDigit(cell,digit,spins,dur,delay){
+  const total=spins*10+digit; // 從 0 往上滾 spins 圈再到 digit
+  let html="";
+  for(let i=0;i<=total;i++)html+='<span class="odd">'+(i%10)+'</span>';
+  cell.innerHTML='<span class="odcol">'+html+'</span>';
+  const col=cell.firstChild;
+  col.style.transition="none";col.style.transform="translateY(0)";
+  void col.offsetHeight; // 強制 reflow，讓接下來的 transition 生效
+  col.style.transition="transform "+dur+"ms cubic-bezier(.16,1,.3,1) "+delay+"ms";
+  col.style.transform="translateY(-"+total+"em)";
 }
+// fresh=true：整個從 0 亂速滾上去（開 App）；false：直接定位
+function rollNumber(el,to,prefix,fresh){
+  to=Math.max(0,Math.round(num(to)));
+  el._val=to;el._prefix=prefix;
+  const s=fmtNum(to);
+  const wrap=document.createElement("span");wrap.className="odo";
+  const pf=document.createElement("span");pf.className="odx";pf.textContent=prefix;wrap.appendChild(pf);
+  el._cells=[];
+  for(const ch of s){
+    if(ch>="0"&&ch<="9"){
+      const c=document.createElement("span");c.className="odc";wrap.appendChild(c);
+      el._cells.push({cell:c,d:+ch});
+    }else{
+      const x=document.createElement("span");x.className="odx";x.textContent=ch;wrap.appendChild(x);
+    }
+  }
+  el.innerHTML="";el.appendChild(wrap);
+  const n=el._cells.length;
+  el._cells.forEach((o,i)=>{
+    if(fresh){
+      const spins=1+Math.floor(Math.random()*2)+(i>=n-3?1+Math.floor(Math.random()*2):0);
+      const dur=850+Math.random()*750+i*45;   // 各位數速度不同 → 不規則
+      const delay=Math.random()*160;
+      odoSetDigit(o.cell,o.d,spins,dur,delay);
+    }else odoSetDigit(o.cell,o.d,0,0,0);
+  });
+}
+// 每 5 秒尾數幾位快速再滾一次（活的感覺；仍停在正確數字）
+function jitterOdometer(el){
+  if(!el._cells||!el._cells.length)return;
+  const n=el._cells.length;
+  const k=Math.min(n,2+Math.floor(Math.random()*3)); // 尾 2–4 位
+  for(let j=0;j<k;j++){
+    const o=el._cells[n-1-j];
+    odoSetDigit(o.cell,o.d,1+Math.floor(Math.random()*2),360+Math.random()*280,j*35);
+  }
+}
+function animateNumber(el,to,prefix){rollNumber(el,to,prefix,true);}
 function renderHome(){
   const cur=currentNet(),goal=num(settings.goal);
   const yrs=Math.max(.01,yearsBetween(currentDate(),targetISO()));
@@ -1843,6 +1893,14 @@ renderGrowth();
 renderAlloc();
 // 開啟 App 自動同步（下載較新資料，或把較新的本機資料推上去）
 if(syncConfigured())pullSync(false);
+// 總資產每 5 秒尾數快速滾動（活的感覺）；App 由背景返回時整個重滾一次
+setInterval(()=>{
+  const el=document.getElementById("h_amount");
+  if(el&&el._cells&&!document.hidden&&document.getElementById("v-home").classList.contains("active"))jitterOdometer(el);
+},5000);
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden&&document.getElementById("v-home").classList.contains("active"))renderHome();
+});
 </script>
 </body>
 </html>
