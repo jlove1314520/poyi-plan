@@ -481,7 +481,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.9.2";
+const APP_VER="3.9.3";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -1194,13 +1194,14 @@ function renderHold(){
     const costTag=usdMkt(h.mkt)&&h.costCur==="TWD"?"NT":"";
     const meta=MKT_META[h.mkt]||MKT_META.TW;
     const qty=h.mkt==="CR"?num(h.shares):fmtNum(h.shares);
-    // 大標題用公司名（有名稱時），代號移到副行
-    const title=h.name||h.ticker;
-    const tkPre=h.name?`${esc(h.ticker)} · `:"";
+    // 台股用公司名當標題、代號放副行；美股/加密維持代號當標題、公司名放副行
+    const twNamed=h.mkt==="TW"&&h.name;
+    const title=twNamed?h.name:h.ticker;
+    const subPre=twNamed?`${esc(h.ticker)} · ` : (h.name?`${esc(h.name)} · `:"");
     let sub;
-    if(h.shares==null)sub=tkPre+"手動輸入市值";
-    else if(q)sub=`${tkPre}${qty}${meta.unit} @${costTag}${num(h.cost)} · 價 ${num(q.price)}${h.mkt==="CR"?" USDT":""}`;
-    else sub=`${tkPre}${qty}${meta.unit} @${costTag}${num(h.cost)} · 待更新報價`;
+    if(h.shares==null)sub=subPre+"手動輸入市值";
+    else if(q)sub=`${subPre}${qty}${meta.unit} @${costTag}${num(h.cost)} · 價 ${num(q.price)}${h.mkt==="CR"?" USDT":""}`;
+    else sub=`${subPre}${qty}${meta.unit} @${costTag}${num(h.cost)} · 待更新報價`;
     const row=document.createElement("div");row.className="hrow";
     row.style.cursor="pointer";
     row.innerHTML=`<div class="tk">${esc(title)}<span class="mkt-tag mkt-${h.mkt}">${meta.label}</span></div>
