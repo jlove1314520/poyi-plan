@@ -42,12 +42,12 @@ body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;
 .hero{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:22px 20px}
 .hero .label{font-size:12px;color:var(--ink3);font-weight:700;letter-spacing:.08em}
 .hero .amount{font-family:var(--serif);font-size:36px;font-weight:700;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
-/* 總資產翻牌式數字滾筒 */
-.odo{display:inline-flex;align-items:baseline;line-height:1}
+/* 總資產翻牌式數字滾筒（每格加高、數字釘底、上方留白，避免接縫露出鄰格毛邊）*/
+.odo{display:inline-flex;align-items:flex-end;line-height:1}
 .odx{white-space:pre}
-.odc{display:inline-block;height:1em;line-height:1;overflow:hidden;vertical-align:baseline}
-.odcol{display:block;will-change:transform}
-.odd{display:block;height:1em;line-height:1;text-align:center}
+.odc{display:inline-block;height:1.18em;overflow:hidden;vertical-align:bottom}
+.odcol{display:block;will-change:transform;backface-visibility:hidden}
+.odd{height:1.18em;display:flex;align-items:flex-end;justify-content:center;line-height:1}
 .hero .asof{font-size:12px;color:var(--ink3);margin-top:2px}
 .hero-row{display:flex;align-items:center;gap:20px;margin-top:16px}
 .ring{position:relative;width:100px;height:100px;flex:none}
@@ -487,7 +487,7 @@ nav button.active{color:var(--acc-d);background:var(--acc-soft)}
 <script>
 "use strict";
 // ================= 版本與自動更新 =================
-const APP_VER="3.9.4";
+const APP_VER="3.9.5";
 if(location.protocol.startsWith("http")){
   (async()=>{try{
     const t=await fetch("sw.js",{cache:"reload"}).then(r=>r.text());
@@ -628,6 +628,7 @@ document.querySelectorAll("nav button").forEach(b=>{
 
 // ================= 總覽 =================
 // ===== 翻牌式數字滾筒（總資產）=====
+const ODO_CH=1.18; // 每格高度（em），與 .odc/.odd 一致
 function odoSetDigit(cell,digit,spins,dur,delay){
   const total=spins*10+digit; // 從 0 往上滾 spins 圈再到 digit
   let html="";
@@ -637,7 +638,7 @@ function odoSetDigit(cell,digit,spins,dur,delay){
   col.style.transition="none";col.style.transform="translateY(0)";
   void col.offsetHeight; // 強制 reflow，讓接下來的 transition 生效
   col.style.transition="transform "+dur+"ms cubic-bezier(.16,1,.3,1) "+delay+"ms";
-  col.style.transform="translateY(-"+total+"em)";
+  col.style.transform="translateY(-"+(total*ODO_CH)+"em)";
 }
 // fresh=true：整個從 0 亂速滾上去（開 App）；false：直接定位
 function rollNumber(el,to,prefix,fresh){
